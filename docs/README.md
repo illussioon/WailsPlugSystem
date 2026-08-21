@@ -9,7 +9,7 @@ WailsPlugSystem is a Go SDK for loading, composing, and authoring portable `.plu
 ## 1. Install the SDK
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.4.0
+go get github.com/illussioon/WailsPlugSystem@v0.5.0
 ```
 
 The module contains no Wails dependency in its core. It is ordinary Go code and can be cross-compiled for Linux, Windows, and macOS. Wails is connected through the standard `net/http` asset handler interface.
@@ -148,6 +148,23 @@ func main() {
 | `Build` | Writes a temporary source tree and creates a `.plugs` archive. |
 | `WriteSource` | Writes `manifest.json`, `patches.json`, and `assets/` for inspection or custom packaging. |
 
+### File-based authoring
+
+Inline strings remain available, but larger interfaces can be loaded from normal project files. The SDK reads them, validates source files, stores them in the asset allowlist, computes SHA-256 hashes during packaging, and creates the corresponding patches:
+
+```go
+definition := plugin.New("acme.react-ui", "Acme React UI", "1.0.0").
+    AppendHTMLFile("mount", "body", "ui/mount.html").
+    CSSFile("styles", "styles/ui.css", "ui/styles.css").
+    JSFile("bundle", "scripts/ui.js", "dist/ui.bundle.js").
+    AssetFile("assets/icon.svg", "ui/icon.svg").
+    AssetsDir("ui/static")
+
+_, err := definition.Build("dist/acme.react-ui.plugs")
+```
+
+`AppendHTMLFile` and `ReplaceHTMLFile` use file contents as HTML fragments. `CSSFile` and `JSFile` inject files while keeping the existing JavaScript/CSS permission checks. `AssetFile` stores one arbitrary file, and `AssetsDir` recursively adds regular files under `assets/`. Symlinks, invalid archive paths, non-regular files, and files larger than 8 MiB are rejected. File paths are local build-time inputs; the resulting `.plugs` archive contains the bytes, not references to the developer's filesystem.
+
 ### Console logging
 
 A plugin can write to the host/Wails console without manually creating a fetch call:
@@ -247,7 +264,7 @@ JavaScript is not a sandbox. When enabled, it runs with the host WebView's norma
 Manual source directories can still be packaged with the CLI:
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.4.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.5.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -291,7 +308,7 @@ Use semantic version tags:
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
-go get github.com/illussioon/WailsPlugSystem@v0.4.0
+go get github.com/illussioon/WailsPlugSystem@v0.5.0
 ```
 
 After a public tag is pushed, Go tooling can resolve the module and `pkg.go.dev` can index its documentation. The module path is:

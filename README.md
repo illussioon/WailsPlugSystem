@@ -16,7 +16,7 @@ The low-level root package remains available for advanced integrations and backw
 ## Install
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.4.0
+go get github.com/illussioon/WailsPlugSystem@v0.5.0
 ```
 
 ## Minimal host application
@@ -72,7 +72,9 @@ go test -race ./...
 go build ./...
 ```
 
-See the [English SDK guide](./docs/README.md) for Wails integration, SHA-256 allowlists, conflict priorities, security model, CLI usage, and publishing instructions.
+See the [English SDK guide](./docs/README.md) for Wails integration, SHA-256 allowlists, conflict priorities, security model, CLI usage, publishing instructions, and file-based authoring.
+
+For larger plugin interfaces, use `AppendHTMLFile`, `CSSFile`, `JSFile`, `AssetFile`, and `AssetsDir` to build a `.plugs` archive from normal project files instead of embedding long HTML/CSS/JS strings in Go.
 
 ## Wails IP demo
 

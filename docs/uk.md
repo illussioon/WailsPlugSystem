@@ -7,7 +7,7 @@
 ## Встановлення
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.4.0
+go get github.com/illussioon/WailsPlugSystem@v0.5.0
 ```
 
 Ядро не імпортує Wails і використовує звичайний `net/http`, тому пакет збирається для Linux, Windows і macOS.
@@ -121,6 +121,23 @@ Builder автоматично записує SHA-256 кожного asset. Runt
 
 HTML fragments проходять sanitizer: видаляються script-like елементи, event-handler attributes та небезпечні URL schemes. JavaScript потребує одночасно `plugin.JavaScript()` і `client.Options{AllowJavaScript: true}`. JavaScript не sandboxed і виконується зі звичайними правами WebView, тому дозволяйте його лише довіреним постачальникам. Для недовірених плагінів використовуйте SHA-256 allowlist, вимкнений JavaScript і не вмикайте `ReplaceRoot`.
 
+## File-based authoring
+
+Для великих інтерфейсів не обов’язково вставляти HTML/CSS/JS рядками. SDK прочитає звичайні файли проєкту, перевірить їх, додасть до allowlist assets, розрахує SHA-256 під час пакування та створить потрібні patches:
+
+```go
+definition := plugin.New("acme.react-ui", "Acme React UI", "1.0.0").
+    AppendHTMLFile("mount", "body", "ui/mount.html").
+    CSSFile("styles", "styles/ui.css", "ui/styles.css").
+    JSFile("bundle", "scripts/ui.js", "dist/ui.bundle.js").
+    AssetFile("assets/icon.svg", "ui/icon.svg").
+    AssetsDir("ui/static")
+
+_, err := definition.Build("dist/acme.react-ui.plugs")
+```
+
+`AppendHTMLFile` і `ReplaceHTMLFile` використовують вміст файлу як HTML fragment. `CSSFile` і `JSFile` зберігають наявні permission checks. `AssetFile` додає один довільний файл, а `AssetsDir` рекурсивно додає regular files до `assets/`. Symlinks, небезпечні archive paths, non-regular files і файли більші за 8 MiB відхиляються. Після збірки `.plugs` містить самі bytes, а не посилання на локальну файлову систему розробника.
+
 ## Console logging
 
 Плагін може писати в консоль host/Wails і в консоль WebView/browser:
@@ -168,7 +185,7 @@ Lifecycle-повідомлення одразу передається host logg
 ## CLI та публікація
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.4.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.5.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -177,7 +194,7 @@ plugs hash --file ./dist/my-plugin.plugs
 Після публічного semver tag пакет підключається стандартно:
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.4.0
+go get github.com/illussioon/WailsPlugSystem@v0.5.0
 ```
 
 Після публікації тега Go tooling і `pkg.go.dev` зможуть індексувати модуль і його GoDoc.

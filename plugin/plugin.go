@@ -19,6 +19,7 @@ type Definition struct {
 	manifest wailsplugs.Manifest
 	patches  []wailsplugs.Patch
 	assets   map[string][]byte
+	err      error
 }
 
 // New creates a plugin definition with the required manifest fields.
@@ -156,6 +157,95 @@ func (d *Definition) Asset(path string, data []byte) *Definition {
 	return d
 }
 
+// AssetFile reads sourcePath and stores it under assetPath in the plugin archive.
+func (d *Definition) AssetFile(assetPath, sourcePath string) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read asset %q: %w", sourcePath, err))
+	}
+	return d.Asset(assetPath, data)
+}
+
+// AssetsDir recursively adds regular files from sourceDir under assets/.
+// Symlinks and invalid archive paths are rejected.
+func (d *Definition) AssetsDir(sourceDir string) *Definition {
+	if d.err != nil {
+		return d
+	}
+	info, err := os.Stat(sourceDir)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: stat assets directory %q: %w", sourceDir, err))
+	}
+	if !info.IsDir() {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: assets path %q is not a directory", sourceDir))
+	}
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("wailsplugs/plugin: symlink is not allowed: %q", path)
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		relative, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		assetPath := filepath.ToSlash(filepath.Join("assets", relative))
+		if !wailsplugs.ValidAssetForPack(assetPath) {
+			return fmt.Errorf("wailsplugs/plugin: invalid asset path %q", assetPath)
+		}
+		data, err := readSourceFile(path)
+		if err != nil {
+			return err
+		}
+		d.Asset(assetPath, data)
+		return nil
+	})
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: collect assets directory %q: %w", sourceDir, err))
+	}
+	return d
+}
+
+// AppendHTMLFile reads an HTML fragment from sourcePath and appends it to selector.
+func (d *Definition) AppendHTMLFile(id, selector, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read HTML file %q: %w", sourcePath, err))
+	}
+	return d.AppendHTML(id, selector, string(data), options...)
+}
+
+// ReplaceHTMLFile reads an HTML fragment from sourcePath and replaces selector contents.
+func (d *Definition) ReplaceHTMLFile(id, selector, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read HTML file %q: %w", sourcePath, err))
+	}
+	return d.ReplaceHTML(id, selector, string(data), options...)
+}
+
+// CSSFile reads sourcePath and adds it as a CSS asset with an inject_css patch.
+func (d *Definition) CSSFile(id, assetPath, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read CSS file %q: %w", sourcePath, err))
+	}
+	return d.AddCSS(id, assetPath, data, options...)
+}
+
+// JSFile reads sourcePath and adds it as a JavaScript asset with an inject_js patch.
+func (d *Definition) JSFile(id, assetPath, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read JavaScript file %q: %w", sourcePath, err))
+	}
+	return d.AddJS(id, assetPath, data, options...)
+}
+
 // CSS adds a CSS asset and an inject_css patch.
 func (d *Definition) AddCSS(id, assetPath string, data []byte, options ...PatchOption) *Definition {
 	d.CSSPermission().Asset(assetPath, data)
@@ -224,6 +314,9 @@ func (d *Definition) WriteSource(dir string) error {
 	if d == nil {
 		return fmt.Errorf("wailsplugs/plugin: nil definition")
 	}
+	if d.err != nil {
+		return d.err
+	}
 	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0755); err != nil {
 		return err
 	}
@@ -272,6 +365,9 @@ func (d *Definition) Build(output string) (string, error) {
 	if d == nil {
 		return "", fmt.Errorf("wailsplugs/plugin: nil definition")
 	}
+	if d.err != nil {
+		return "", d.err
+	}
 	dir, err := os.MkdirTemp("", "wailsplugs-plugin-")
 	if err != nil {
 		return "", err
@@ -281,6 +377,39 @@ func (d *Definition) Build(output string) (string, error) {
 		return "", err
 	}
 	return pack.Build(pack.Options{InputDir: dir, Output: output})
+}
+
+func (d *Definition) rememberError(err error) *Definition {
+	if d.err == nil {
+		d.err = err
+	}
+	return d
+}
+
+const maxSourceFileBytes = 8 << 20
+
+func readSourceFile(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("symlink is not allowed")
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("not a regular file")
+	}
+	if info.Size() > maxSourceFileBytes {
+		return nil, fmt.Errorf("file exceeds %d-byte limit", maxSourceFileBytes)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSourceFileBytes {
+		return nil, fmt.Errorf("file exceeds %d-byte limit", maxSourceFileBytes)
+	}
+	return data, nil
 }
 
 func normalizeAssetPath(value string) string {
