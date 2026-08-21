@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"log"
 	"sort"
 	"strings"
 
@@ -16,8 +17,15 @@ func NewManager(options ManagerOptions) *Manager {
 	if maxPlugins <= 0 {
 		maxPlugins = 256
 	}
+	hostLogger := options.HostLogger
+	if hostLogger == nil {
+		hostLogger = func(message ConsoleMessage) {
+			log.Printf("[WailsPlugSystem] plugin=%s %s", message.PluginID, message.Message)
+		}
+	}
 	return &Manager{
 		loader:           options.Loader,
+		hostLogger:       hostLogger,
 		allowJavaScript:  options.AllowJavaScript,
 		allowRootReplace: options.AllowRootReplace,
 		strictDeps:       options.StrictDependencies,
@@ -99,6 +107,9 @@ func (m *Manager) Render(source string) (RenderResult, error) {
 	document, err := xhtml.Parse(strings.NewReader(source))
 	if err != nil {
 		return RenderResult{}, fmt.Errorf("wailsplugs: parse html: %w", err)
+	}
+	if m.allowJavaScript {
+		injectConsoleBridge(document)
 	}
 	decisions := []Decision{}
 	claimed := map[string]bool{}
@@ -202,6 +213,50 @@ func (m *Manager) applyPatch(document *xhtml.Node, item Package, patch Patch) er
 		}
 	}
 	return nil
+}
+
+// LogConsole forwards a message from the browser bridge to the configured host logger.
+func (m *Manager) LogConsole(message ConsoleMessage) {
+	m.logConsole(message)
+}
+
+func (m *Manager) logConsole(message ConsoleMessage) {
+	if message.Source == "" {
+		message.Source = "plugin"
+	}
+	m.mu.RLock()
+	logger := m.hostLogger
+	m.mu.RUnlock()
+	if logger != nil {
+		logger(message)
+	}
+}
+
+func injectConsoleBridge(document *xhtml.Node) {
+	head := firstNode(document, func(node *xhtml.Node) bool {
+		return node.Type == xhtml.ElementNode && node.Data == "head"
+	})
+	if head == nil {
+		return
+	}
+	bridge := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Script, Data: "script"}
+	bridge.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: `(function () {
+  var root = window.Wails = window.Wails || {};
+  var print = root.print = root.print || {};
+  print.console = print.console || function (message) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    fetch("/__wailsplugs/console", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: String(message), args: args })
+    }).catch(function () {});
+  };
+  print.console.browser = print.console.browser || function (message) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    console.log.apply(console, ["[WailsPlugSystem]"].concat([String(message)]).concat(args));
+  };
+})();`})
+	head.InsertBefore(bridge, head.FirstChild)
 }
 
 func (m *Manager) injectAsset(document *xhtml.Node, item Package, patch Patch) error {

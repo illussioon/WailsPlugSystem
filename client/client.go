@@ -22,7 +22,9 @@ type Options struct {
 	// SHA256 restricts loading to these archive hashes.
 	SHA256 []string
 
-	PackageOptions     wailsplugs.PackageOptions
+	PackageOptions wailsplugs.PackageOptions
+	// HostLogger receives messages sent by Wails.print.console.
+	HostLogger         func(wailsplugs.ConsoleMessage)
 	AllowJavaScript    bool
 	AllowRootReplace   bool
 	StrictDependencies bool
@@ -58,6 +60,7 @@ func New(options Options) (*Client, error) {
 	}
 	return &Client{manager: wailsplugs.NewManager(wailsplugs.ManagerOptions{
 		Loader:             packageLoader,
+		HostLogger:         options.HostLogger,
 		AllowJavaScript:    options.AllowJavaScript,
 		AllowRootReplace:   options.AllowRootReplace,
 		StrictDependencies: options.StrictDependencies,

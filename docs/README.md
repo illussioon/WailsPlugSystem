@@ -9,7 +9,7 @@ WailsPlugSystem is a Go SDK for loading, composing, and authoring portable `.plu
 ## 1. Install the SDK
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.2.0
+go get github.com/illussioon/WailsPlugSystem@v0.3.0
 ```
 
 The module contains no Wails dependency in its core. It is ordinary Go code and can be cross-compiled for Linux, Windows, and macOS. Wails is connected through the standard `net/http` asset handler interface.
@@ -148,6 +148,26 @@ func main() {
 | `Build` | Writes a temporary source tree and creates a `.plugs` archive. |
 | `WriteSource` | Writes `manifest.json`, `patches.json`, and `assets/` for inspection or custom packaging. |
 
+### Console logging
+
+A plugin can write to the host/Wails console without manually creating a fetch call:
+
+```go
+definition := plugin.New("acme.debug", "Acme Debug", "1.0.0").
+    JavaScript().
+    Console("startup", "Hello World").
+    ConsoleBrowser("browser-startup", "Hello World in WebView2/browser console")
+```
+
+The helpers generate these runtime calls:
+
+```javascript
+Wails.print.console("Hello World");
+Wails.print.console.browser("Hello World in WebView2/browser console");
+```
+
+`Wails.print.console` sends a small JSON message to the host through the SDK endpoint and the host forwards it to the configured `client.Options.HostLogger` callback. If no callback is supplied, the standard Go logger is used. `Wails.print.console.browser` writes directly to the native WebView/browser developer console. Both methods require the host's `AllowJavaScript: true` policy because they execute in the WebView.
+
 Patch helpers accept options:
 
 ```go
@@ -203,7 +223,7 @@ JavaScript is not a sandbox. When enabled, it runs with the host WebView's norma
 Manual source directories can still be packaged with the CLI:
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.2.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.3.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -247,7 +267,7 @@ Use semantic version tags:
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
-go get github.com/illussioon/WailsPlugSystem@v0.2.0
+go get github.com/illussioon/WailsPlugSystem@v0.3.0
 ```
 
 After a public tag is pushed, Go tooling can resolve the module and `pkg.go.dev` can index its documentation. The module path is:

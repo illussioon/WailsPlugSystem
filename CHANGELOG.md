@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 — 2026-08-21
+
+Added plugin SDK helpers `Console` and `ConsoleBrowser`, the runtime global `Wails.print.console` / `Wails.print.console.browser`, host-side `ConsoleMessage` and `HostLogger`, and the `/__wailsplugs/console` JSON endpoint. Added tests for browser-to-host logging, WebView console output, message escaping, and Wails 2/3 examples.
+
 ## 0.2.0 — 2026-08-21
 
 Added the public `client` host facade and `plugin` authoring SDK. Added fluent plugin definitions, typed patch helpers, automatic asset hashing, SDK examples, English canonical documentation, Russian and Ukrainian localized guides with language switching, and pkg.go.dev-ready module instructions. Existing root-package APIs remain available for advanced integrations and backwards compatibility.

@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	FormatVersion = 1
-	APIVersion    = "v1"
+	FormatVersion   = 1
+	APIVersion      = "v1"
+	ConsoleEndpoint = "/__wailsplugs/console"
 )
 
 type Permission string
@@ -105,9 +106,23 @@ type RenderResult struct {
 	Plugins   []string   `json:"plugins"`
 }
 
+// ConsoleMessage is a message emitted by a plugin through Wails.print.console.
+// Source is "plugin" for plugin-originated messages and Message is safe to log
+// as plain text. Args preserves optional structured values when supplied by a
+// future host integration.
+type ConsoleMessage struct {
+	PluginID string `json:"plugin_id,omitempty"`
+	Message  string `json:"message"`
+	Source   string `json:"source,omitempty"`
+	Args     []any  `json:"args,omitempty"`
+}
+
 type ManagerOptions struct {
-	Loader             PackageLoader
-	AllowJavaScript    bool
+	Loader          PackageLoader
+	AllowJavaScript bool
+	// HostLogger receives messages from Wails.print.console. If nil, the
+	// runtime writes them with the standard Go logger.
+	HostLogger         func(ConsoleMessage)
 	AllowRootReplace   bool
 	StrictDependencies bool
 	MaxPlugins         int
@@ -116,6 +131,7 @@ type ManagerOptions struct {
 type Manager struct {
 	mu               sync.RWMutex
 	loader           PackageLoader
+	hostLogger       func(ConsoleMessage)
 	allowJavaScript  bool
 	allowRootReplace bool
 	strictDeps       bool

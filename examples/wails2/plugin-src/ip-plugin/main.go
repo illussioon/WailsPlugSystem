@@ -79,6 +79,8 @@ func main() {
 
 	definition := plugin.New("example.ip", "Example IP Plugin", "1.0.0").
 		Priority(100).
+		Console("plugin-loaded", "IP plugin loaded").
+		ConsoleBrowser("plugin-loaded-browser", "IP plugin loaded in browser console").
 		HTML().
 		AppendHTML("ip-card", "main", ipHTML).
 		AddCSS("ip-style", "ip.css", []byte(ipCSS), plugin.WithConflictKey("example-ip-style")).

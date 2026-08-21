@@ -16,7 +16,7 @@ The low-level root package remains available for advanced integrations and backw
 ## Install
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.2.0
+go get github.com/illussioon/WailsPlugSystem@v0.3.0
 ```
 
 ## Minimal host application

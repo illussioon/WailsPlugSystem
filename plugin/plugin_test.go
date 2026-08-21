@@ -2,11 +2,35 @@ package plugin_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	wailsplugs "github.com/illussioon/WailsPlugSystem"
 	"github.com/illussioon/WailsPlugSystem/plugin"
 )
+
+func TestConsoleHelpersBuildCalls(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "console.plugs")
+	definition := plugin.New("console.example", "Console Example", "1.0.0").
+		Console("host-message", `Hello "World"`).
+		ConsoleBrowser("browser-message", "Hello Browser")
+	if _, err := definition.Build(path); err != nil {
+		t.Fatal(err)
+	}
+	item, err := wailsplugs.OpenPackage(path, wailsplugs.PackageOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := ""
+	for _, data := range item.Assets {
+		joined += string(data) + "\n"
+	}
+	for _, expected := range []string{"Wails.print.console(\"Hello \\\"World\\\"\")", "Wails.print.console.browser(\"Hello Browser\")"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("generated console asset missing %q: %s", expected, joined)
+		}
+	}
+}
 
 func TestDefinitionBuildsAssetsAndPatches(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "authoring.plugs")

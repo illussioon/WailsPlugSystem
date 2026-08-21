@@ -2,6 +2,8 @@ package httpmiddleware
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -18,6 +20,10 @@ func New(manager *wailsplugs.Manager, next http.Handler) http.Handler {
 }
 
 func (m Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == wailsplugs.ConsoleEndpoint {
+		m.handleConsole(writer, request)
+		return
+	}
 	if m.Manager == nil || m.Next == nil {
 		if m.Next != nil {
 			m.Next.ServeHTTP(writer, request)
@@ -41,6 +47,22 @@ func (m Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 	capture.body.WriteString(result.HTML)
 	capture.header.Del("Content-Length")
 	copyResponse(writer, capture)
+}
+
+func (m Middleware) handleConsole(writer http.ResponseWriter, request *http.Request) {
+	if m.Manager == nil || request.Method != http.MethodPost {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	var message wailsplugs.ConsoleMessage
+	decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<20))
+	if err := decoder.Decode(&message); err != nil {
+		http.Error(writer, "invalid console message", http.StatusBadRequest)
+		return
+	}
+	message.Source = "browser"
+	m.Manager.LogConsole(message)
+	writer.WriteHeader(http.StatusNoContent)
 }
 
 type responseCapture struct {

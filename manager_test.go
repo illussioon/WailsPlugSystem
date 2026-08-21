@@ -54,10 +54,13 @@ func TestSanitizerRemovesDangerousMarkup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"onclick", "javascript:", "<script"} {
+	for _, forbidden := range []string{"onclick", "javascript:"} {
 		if strings.Contains(strings.ToLower(result.HTML), forbidden) {
 			t.Fatalf("sanitizer left %q in %s", forbidden, result.HTML)
 		}
+	}
+	if strings.Contains(strings.ToLower(result.HTML), "<script") {
+		t.Fatalf("sanitizer left a script while JavaScript is disabled: %s", result.HTML)
 	}
 	if !strings.Contains(result.HTML, ">safe</a>") {
 		t.Fatalf("safe text missing: %s", result.HTML)

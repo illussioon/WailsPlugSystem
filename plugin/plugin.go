@@ -165,6 +165,39 @@ func (d *Definition) AddJS(id, assetPath string, data []byte, options ...PatchOp
 	return d
 }
 
+// Console adds a runtime call that sends a message to the host/Wails logger.
+// The host receives it through ConsoleEndpoint and the configured HostLogger.
+func (d *Definition) Console(id, message string, options ...PatchOption) *Definition {
+	return d.AddJS(id, consoleAssetPath(id), []byte(fmt.Sprintf("Wails.print.console(%s);", jsonString(message))), options...)
+}
+
+// ConsoleBrowser adds a runtime call that writes a message to the native
+// WebView/browser developer console. It also requires the host JavaScript policy.
+func (d *Definition) ConsoleBrowser(id, message string, options ...PatchOption) *Definition {
+	return d.AddJS(id, consoleAssetPath(id+"-browser"), []byte(fmt.Sprintf("Wails.print.console.browser(%s);", jsonString(message))), options...)
+}
+
+func jsonString(value string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
+}
+
+func consoleAssetPath(id string) string {
+	var builder strings.Builder
+	for _, char := range id {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_' {
+			builder.WriteRune(char)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	name := builder.String()
+	if name == "" {
+		name = "message"
+	}
+	return "console/" + name + ".js"
+}
+
 // Manifest returns a copy of the generated manifest before build-time asset hashes.
 func (d *Definition) Manifest() wailsplugs.Manifest { return d.manifest }
 
