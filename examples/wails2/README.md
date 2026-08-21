@@ -9,6 +9,7 @@ examples/wails2/
 ├── plugin-src/ip-plugin/main.go
 ├── main.go
 ├── plugin_render_test.go
+├── wails.json
 └── go.mod
 ```
 
@@ -22,6 +23,10 @@ go mod tidy
 go run ./plugin-src/ip-plugin -output ./plugins/ip.example.plugs
 wails dev
 ```
+
+The repository includes the required `wails.json`. Wails CLI v2 reads this file from the current directory; without it, `wails dev` reports `open .../wails.json: The system cannot find the file specified`. The example is aligned with Wails CLI v2.13.0 and module `github.com/wailsapp/wails/v2 v2.13.0`.
+
+On Ubuntu 24.04, the config enables Wails' `webkit2_41` build tag for WebKitGTK 4.1. Windows and macOS users do not need to change the configuration. Linux users who need the native build should install GTK3 and WebKitGTK 4.1 development packages.
 
 Для production build:
 

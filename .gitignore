@@ -5,6 +5,9 @@
 
 # Build artifacts
 /dist/
+/build/
+examples/wails2/build/
+examples/wails3/build/
 *.plugs
 !examples/wails2/plugins/
 !examples/wails2/plugins/*.plugs
@@ -20,3 +23,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.swp
+
+wailsjs/

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "wails2-ip-demo",
+  "outputfilename": "wails2-ip-demo",
+  "frontend:dir": "frontend",
+  "build:dir": "build",
+  "build:tags": "webkit2_41",
+  "version": "2",
+  "author": {
+    "name": "WailsPlugSystem",
+    "email": ""
+  }
+}

@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/illussioon/WailsPlugSystem v0.2.0
-	github.com/wailsapp/wails/v2 v2.14.0
+	github.com/wailsapp/wails/v2 v2.13.0
 )
 
 require (
