@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 — 2026-08-21
+
+Added the public `client` host facade and `plugin` authoring SDK. Added fluent plugin definitions, typed patch helpers, automatic asset hashing, SDK examples, English canonical documentation, Russian and Ukrainian localized guides with language switching, and pkg.go.dev-ready module instructions. Existing root-package APIs remain available for advanced integrations and backwards compatibility.
+
 ## 0.1.0 — 2026-08-21
 
 Первая рабочая версия WailsPlugSystem.

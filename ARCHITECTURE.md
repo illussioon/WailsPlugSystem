@@ -47,3 +47,18 @@ app := application.New(application.Options{
 ## Отдельные границы безопасности
 
 SHA-256 подтверждает целостность именно указанного артефакта, но не доказывает его происхождение. Для production рекомендуется распространять allowlist хешей из доверенного канала и ограничивать директорию плагинов. Произвольный JavaScript имеет полномочия webview и должен считаться доверенным кодом; для недоверенных поставщиков используйте только HTML/CSS permissions или будущий WASM sandbox.
+
+## SDK facade
+
+The stable developer-facing layer is split into two packages:
+
+```text
+github.com/illussioon/WailsPlugSystem/client  # host application API
+github.com/illussioon/WailsPlugSystem/plugin  # plugin author SDK
+```
+
+`client.New(client.Options)` selects a directory loader or SHA-256 allowlist, creates the underlying root Manager, and exposes `Reload`, `Render`, `Handler`, `Packages` and `Manager`. Advanced applications may provide a custom `PackageLoader`.
+
+`plugin.Definition` is a fluent builder. It creates a valid manifest, adds patches with helpers such as `SetText`, `AppendHTML`, `SetAttr`, `AddClass`, `CSS` and `JS`, writes a source directory, or calls `Build` to produce a `.plugs` file. Low-level root types remain available for advanced integrations and backwards compatibility.
+
+Documentation is language-switched through `docs/README.md` (English), `docs/ru.md` (Russian) and `docs/uk.md` (Ukrainian). English is the canonical API reference; localized pages follow the same examples and security guarantees.
