@@ -211,7 +211,20 @@ plugs hash --file ./dist/my-plugin.plugs
 
 The fluent `plugin.Definition` API is preferred for Go-authored plugins because it validates the same manifest and asset rules while keeping the authoring code type-safe.
 
-## 8. Versioning and publishing
+## 8. Complete Wails IP demo
+
+The repository includes [`examples/wails-ip-app`](../examples/wails-ip-app), a complete Wails v3 host and an independent Go plugin. The host loads `.plugs` from `./plugins` and contains no IP implementation. The plugin adds the IP card, refresh button, CSS, and JavaScript request to `https://api64.ipify.org?format=json`.
+
+Run it with:
+
+```bash
+cd examples/wails-ip-app
+go mod tidy
+go run ./plugin-src/ip-plugin -output ./plugins/ip.example.plugs
+wails3 dev
+```
+
+## 9. Versioning and publishing
 
 Use semantic version tags:
 
