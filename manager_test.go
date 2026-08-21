@@ -92,3 +92,72 @@ func TestJavaScriptRequiresExplicitPolicy(t *testing.T) {
 		t.Fatalf("JavaScript was not injected with explicit policy: %s", result.HTML)
 	}
 }
+
+type sequenceLoader struct {
+	packages []Package
+}
+
+func (s *sequenceLoader) Load(context.Context) ([]Package, error) {
+	return append([]Package(nil), s.packages...), nil
+}
+
+func TestPluginLifecycleMessages(t *testing.T) {
+	loader := &sequenceLoader{}
+	var messages []ConsoleMessage
+	manager := NewManager(ManagerOptions{
+		Loader:          loader,
+		AllowJavaScript: true,
+		HostLogger: func(message ConsoleMessage) {
+			messages = append(messages, message)
+		},
+	})
+	old := Package{Manifest: testManifest("example", 1), SHA256: "old"}
+	old.Manifest.Lifecycle = Lifecycle{Load: "old loaded", Unload: "old unloaded"}
+	newItem := Package{Manifest: testManifest("example", 1), SHA256: "new"}
+	newItem.Manifest.Lifecycle = Lifecycle{Load: "new loaded", Unload: "new unloaded"}
+
+	loader.packages = []Package{old}
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 || messages[0].Message != "old loaded" || messages[0].Source != "plugin.load" {
+		t.Fatalf("unexpected initial lifecycle messages: %#v", messages)
+	}
+	first, err := manager.Render(`<html><head></head><body></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(first.HTML, `Wails.plugin.print.load("old loaded")`) {
+		t.Fatalf("load lifecycle script missing: %s", first.HTML)
+	}
+	second, err := manager.Render(`<html><head></head><body></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(second.HTML, "old loaded") {
+		t.Fatalf("lifecycle event was injected more than once: %s", second.HTML)
+	}
+
+	loader.packages = []Package{newItem}
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 3 || messages[1].Message != "old unloaded" || messages[2].Message != "new loaded" {
+		t.Fatalf("unexpected replacement lifecycle messages: %#v", messages)
+	}
+	replacement, err := manager.Render(`<html><head></head><body></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(replacement.HTML, `Wails.plugin.print.unload("old unloaded")`) || !strings.Contains(replacement.HTML, `Wails.plugin.print.load("new loaded")`) {
+		t.Fatalf("replacement lifecycle scripts missing: %s", replacement.HTML)
+	}
+
+	loader.packages = nil
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 4 || messages[3].Message != "new unloaded" {
+		t.Fatalf("unexpected final unload messages: %#v", messages)
+	}
+}

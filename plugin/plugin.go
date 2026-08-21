@@ -38,6 +38,19 @@ func New(id, name, version string) *Definition {
 // Priority sets the conflict priority. Higher values win.
 func (d *Definition) Priority(value int) *Definition { d.manifest.Priority = value; return d }
 
+// OnLoad configures the message emitted when this plugin becomes active.
+// The runtime sends it to both host and browser consoles through the lifecycle bridge.
+func (d *Definition) OnLoad(message string) *Definition {
+	d.manifest.Lifecycle.Load = message
+	return d
+}
+
+// OnUnload configures the message emitted when this plugin is removed or replaced.
+func (d *Definition) OnUnload(message string) *Definition {
+	d.manifest.Lifecycle.Unload = message
+	return d
+}
+
 // Permission adds a manifest permission.
 func (d *Definition) Permission(value wailsplugs.Permission) *Definition {
 	for _, current := range d.manifest.Permissions {

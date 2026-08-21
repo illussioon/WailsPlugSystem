@@ -3,7 +3,7 @@ module github.com/illussioon/WailsPlugSystem/examples/wails3
 go 1.25.0
 
 require (
-	github.com/illussioon/WailsPlugSystem v0.3.0
+	github.com/illussioon/WailsPlugSystem v0.4.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.11.0.20260821003339-06eddc72141a
 )
 

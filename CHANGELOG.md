@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 — 2026-08-21
+
+Added plugin lifecycle manifest fields and fluent SDK methods `OnLoad` and `OnUnload`. The runtime now emits `Wails.plugin.print.load(text)` and `Wails.plugin.print.unload(text)` exactly once per activation, replacement, or removal transition, forwarding messages to the host logger and the WebView/browser console when JavaScript is enabled. Added lifecycle ordering, replacement, unload, one-shot injection, manifest limits, and Wails 2/3 example coverage.
+
 ## 0.3.0 — 2026-08-21
 
 Added plugin SDK helpers `Console` and `ConsoleBrowser`, the runtime global `Wails.print.console` / `Wails.print.console.browser`, host-side `ConsoleMessage` and `HostLogger`, and the `/__wailsplugs/console` JSON endpoint. Added tests for browser-to-host logging, WebView console output, message escaping, and Wails 2/3 examples.

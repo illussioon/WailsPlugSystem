@@ -58,3 +58,20 @@ func TestDefinitionBuildsAssetsAndPatches(t *testing.T) {
 		t.Fatalf("unexpected generated package: patches=%d assets=%d", len(item.Patches), len(item.Assets))
 	}
 }
+
+func TestDefinitionLifecycleMessages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lifecycle.plugs")
+	definition := plugin.New("lifecycle.example", "Lifecycle Example", "1.0.0").
+		OnLoad("plugin loaded").
+		OnUnload("plugin unloaded")
+	if _, err := definition.Build(path); err != nil {
+		t.Fatal(err)
+	}
+	item, err := wailsplugs.OpenPackage(path, wailsplugs.PackageOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Manifest.Lifecycle.Load != "plugin loaded" || item.Manifest.Lifecycle.Unload != "plugin unloaded" {
+		t.Fatalf("unexpected lifecycle manifest: %#v", item.Manifest.Lifecycle)
+	}
+}

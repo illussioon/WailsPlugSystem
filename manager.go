@@ -2,6 +2,7 @@ package wailsplugs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log"
@@ -11,6 +12,12 @@ import (
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
+
+type lifecycleEvent struct {
+	PluginID string
+	Kind     string
+	Message  string
+}
 
 func NewManager(options ManagerOptions) *Manager {
 	maxPlugins := options.MaxPlugins
@@ -56,9 +63,35 @@ func (m *Manager) Reload(ctx context.Context) error {
 	if err := validateDependencies(next, m.strictDeps); err != nil {
 		return err
 	}
+	previous := m.Packages()
+	previousByID := make(map[string]Package, len(previous))
+	for _, item := range previous {
+		previousByID[item.Manifest.ID] = item
+	}
+	events := make([]lifecycleEvent, 0)
+	for _, item := range previous {
+		nextItem, exists := next[item.Manifest.ID]
+		if !exists || nextItem.SHA256 != item.SHA256 {
+			if item.Manifest.Lifecycle.Unload != "" {
+				events = append(events, lifecycleEvent{PluginID: item.Manifest.ID, Kind: "unload", Message: item.Manifest.Lifecycle.Unload})
+			}
+		}
+	}
+	for _, item := range packages {
+		old, exists := previousByID[item.Manifest.ID]
+		if !exists || old.SHA256 != item.SHA256 {
+			if item.Manifest.Lifecycle.Load != "" {
+				events = append(events, lifecycleEvent{PluginID: item.Manifest.ID, Kind: "load", Message: item.Manifest.Lifecycle.Load})
+			}
+		}
+	}
 	m.mu.Lock()
 	m.packages = next
+	m.pendingLifecycle = append(m.pendingLifecycle, events...)
 	m.mu.Unlock()
+	for _, event := range events {
+		m.logConsole(ConsoleMessage{PluginID: event.PluginID, Message: event.Message, Source: "plugin." + event.Kind})
+	}
 	return nil
 }
 
@@ -97,6 +130,8 @@ func (m *Manager) Render(source string) (RenderResult, error) {
 	for _, item := range m.packages {
 		packages = append(packages, item)
 	}
+	pendingLifecycle := append([]lifecycleEvent(nil), m.pendingLifecycle...)
+	m.pendingLifecycle = nil
 	m.mu.RUnlock()
 	sort.Slice(packages, func(i, j int) bool {
 		if packages[i].Manifest.Priority != packages[j].Manifest.Priority {
@@ -109,7 +144,7 @@ func (m *Manager) Render(source string) (RenderResult, error) {
 		return RenderResult{}, fmt.Errorf("wailsplugs: parse html: %w", err)
 	}
 	if m.allowJavaScript {
-		injectConsoleBridge(document)
+		injectConsoleBridge(document, pendingLifecycle)
 	}
 	decisions := []Decision{}
 	claimed := map[string]bool{}
@@ -232,7 +267,7 @@ func (m *Manager) logConsole(message ConsoleMessage) {
 	}
 }
 
-func injectConsoleBridge(document *xhtml.Node) {
+func injectConsoleBridge(document *xhtml.Node, events []lifecycleEvent) {
 	head := firstNode(document, func(node *xhtml.Node) bool {
 		return node.Type == xhtml.ElementNode && node.Data == "head"
 	})
@@ -243,6 +278,8 @@ func injectConsoleBridge(document *xhtml.Node) {
 	bridge.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: `(function () {
   var root = window.Wails = window.Wails || {};
   var print = root.print = root.print || {};
+  var plugin = root.plugin = root.plugin || {};
+  var pluginPrint = plugin.print = plugin.print || {};
   print.console = print.console || function (message) {
     var args = Array.prototype.slice.call(arguments, 1);
     fetch("/__wailsplugs/console", {
@@ -255,8 +292,28 @@ func injectConsoleBridge(document *xhtml.Node) {
     var args = Array.prototype.slice.call(arguments, 1);
     console.log.apply(console, ["[WailsPlugSystem]"].concat([String(message)]).concat(args));
   };
+  pluginPrint.load = pluginPrint.load || function (message) {
+    print.console.browser("[plugin.load] " + String(message));
+  };
+  pluginPrint.unload = pluginPrint.unload || function (message) {
+    print.console.browser("[plugin.unload] " + String(message));
+  };
 })();`})
-	head.InsertBefore(bridge, head.FirstChild)
+	anchor := head.FirstChild
+	head.InsertBefore(bridge, anchor)
+	for _, event := range events {
+		script := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Script, Data: "script"}
+		script.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: lifecycleScript(event)})
+		head.InsertBefore(script, anchor)
+	}
+}
+
+func lifecycleScript(event lifecycleEvent) string {
+	message, _ := json.Marshal(event.Message)
+	if event.Kind == "unload" {
+		return "Wails.plugin.print.unload(" + string(message) + ");"
+	}
+	return "Wails.plugin.print.load(" + string(message) + ");"
 }
 
 func (m *Manager) injectAsset(document *xhtml.Node, item Package, patch Patch) error {

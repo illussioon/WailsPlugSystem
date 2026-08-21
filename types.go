@@ -42,6 +42,11 @@ type FileRef struct {
 	Kind   string `json:"kind,omitempty"`
 }
 
+type Lifecycle struct {
+	Load   string `json:"load,omitempty"`
+	Unload string `json:"unload,omitempty"`
+}
+
 type Manifest struct {
 	FormatVersion int          `json:"format_version"`
 	ID            string       `json:"id"`
@@ -52,6 +57,7 @@ type Manifest struct {
 	Permissions   []Permission `json:"permissions,omitempty"`
 	Dependencies  []Dependency `json:"dependencies,omitempty"`
 	Files         []FileRef    `json:"files,omitempty"`
+	Lifecycle     Lifecycle    `json:"lifecycle,omitempty"`
 }
 
 type PatchKind string
@@ -132,6 +138,7 @@ type Manager struct {
 	mu               sync.RWMutex
 	loader           PackageLoader
 	hostLogger       func(ConsoleMessage)
+	pendingLifecycle []lifecycleEvent
 	allowJavaScript  bool
 	allowRootReplace bool
 	strictDeps       bool

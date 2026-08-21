@@ -7,7 +7,7 @@
 ## Встановлення
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.3.0
+go get github.com/illussioon/WailsPlugSystem@v0.4.0
 ```
 
 Ядро не імпортує Wails і використовує звичайний `net/http`, тому пакет збирається для Linux, Windows і macOS.
@@ -141,10 +141,34 @@ Wails.print.console.browser("Hello World у консолі WebView2/browser");
 
 `Wails.print.console` надсилає JSON-повідомлення host-застосунку. Його можна отримати через `client.Options.HostLogger`; якщо callback не заданий, використовується стандартний Go logger. `Wails.print.console.browser` пише безпосередньо в developer console нативного WebView/browser. Для обох методів host має увімкнути `AllowJavaScript: true`.
 
+### Lifecycle logging плагіна
+
+Плагін може оголосити повідомлення життєвого циклу в manifest `.plugs`:
+
+```go
+definition := plugin.New("acme.plugin", "Acme Plugin", "1.0.0").
+    OnLoad("Acme Plugin завантажено").
+    OnUnload("Acme Plugin вивантажено")
+```
+
+Під час активації плагіна runtime генерує:
+
+```javascript
+Wails.plugin.print.load("Acme Plugin завантажено");
+```
+
+Під час видалення або заміни плагіна через `Reload` генерується:
+
+```javascript
+Wails.plugin.print.unload("Acme Plugin вивантажено");
+```
+
+Lifecycle-повідомлення одразу передається host logger, а browser-console виклик ставиться в чергу до наступного HTML render. Кожна transition надсилається один раз: initial load, пара `unload/load` під час заміни або фінальний unload. При `AllowJavaScript: false` host logging зберігається, але виконання у browser console вимикається.
+
 ## CLI та публікація
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.3.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.4.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -153,7 +177,7 @@ plugs hash --file ./dist/my-plugin.plugs
 Після публічного semver tag пакет підключається стандартно:
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.3.0
+go get github.com/illussioon/WailsPlugSystem@v0.4.0
 ```
 
 Після публікації тега Go tooling і `pkg.go.dev` зможуть індексувати модуль і його GoDoc.
