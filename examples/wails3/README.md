@@ -7,7 +7,7 @@
 Host-приложение (`main.go`) содержит только базовый frontend и generic plugin loader:
 
 ```text
-examples/wails-ip-app/
+examples/wails3/
 ├── frontend/index.html              # базовая страница без IP-функциональности
 ├── plugins/                         # runtime directory приложения
 │   └── ip.example.plugs             # собранный plugin artifact
@@ -25,7 +25,7 @@ IP plugin добавляет HTML card, CSS, кнопку и JavaScript. JavaScr
 Из этой директории:
 
 ```bash
-cd examples/wails-ip-app
+cd examples/wails3
 
 go mod tidy
 

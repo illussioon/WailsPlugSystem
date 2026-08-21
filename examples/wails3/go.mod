@@ -1,4 +1,4 @@
-module github.com/illussioon/WailsPlugSystem/examples/wails-ip-app
+module github.com/illussioon/WailsPlugSystem/examples/wails3
 
 go 1.25.0
 

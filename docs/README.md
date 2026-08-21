@@ -213,15 +213,31 @@ The fluent `plugin.Definition` API is preferred for Go-authored plugins because 
 
 ## 8. Complete Wails IP demo
 
-The repository includes [`examples/wails-ip-app`](../examples/wails-ip-app), a complete Wails v3 host and an independent Go plugin. The host loads `.plugs` from `./plugins` and contains no IP implementation. The plugin adds the IP card, refresh button, CSS, and JavaScript request to `https://api64.ipify.org?format=json`.
+The repository includes two version-specific examples:
 
-Run it with:
+| Example | Wails API | Run command |
+| --- | --- | --- |
+| [`examples/wails2`](../examples/wails2) | Wails 2 `assetserver.Options.Middleware` | `cd examples/wails2 && wails dev` |
+| [`examples/wails3`](../examples/wails3) | Wails 3 `application.AssetOptions.Handler` | `cd examples/wails3 && wails3 dev` |
+
+Both hosts load `.plugs` from their own `./plugins` directory. Neither host contains IP implementation. The shared demo plugin adds the IP card, refresh button, CSS, and JavaScript request to `https://api64.ipify.org?format=json`.
+
+Run Wails 3:
 
 ```bash
-cd examples/wails-ip-app
+cd examples/wails3
 go mod tidy
 go run ./plugin-src/ip-plugin -output ./plugins/ip.example.plugs
 wails3 dev
+```
+
+Run Wails 2:
+
+```bash
+cd examples/wails2
+go mod tidy
+go run ./plugin-src/ip-plugin -output ./plugins/ip.example.plugs
+wails dev
 ```
 
 ## 9. Versioning and publishing

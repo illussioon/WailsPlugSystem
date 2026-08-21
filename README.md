@@ -76,7 +76,7 @@ See the [English SDK guide](./docs/README.md) for Wails integration, SHA-256 all
 
 ## Wails IP demo
 
-A complete Wails v3 host and independent IP plugin are available in [`examples/wails-ip-app`](./examples/wails-ip-app). The host contains no IP logic: it loads `./plugins/ip.example.plugs`, while the plugin adds the `Ваш IP: ...` card, refresh button, CSS, and the `api64.ipify.org` request.
+A complete Wails v3 host and independent IP plugin are available in [`examples/wails3`](./examples/wails3). The host contains no IP logic: it loads `./plugins/ip.example.plugs`, while the plugin adds the `Ваш IP: ...` card, refresh button, CSS, and the `api64.ipify.org` request.
 
 ## License
 

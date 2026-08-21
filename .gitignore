@@ -6,8 +6,10 @@
 # Build artifacts
 /dist/
 *.plugs
-!examples/wails-ip-app/plugins/
-!examples/wails-ip-app/plugins/*.plugs
+!examples/wails2/plugins/
+!examples/wails2/plugins/*.plugs
+!examples/wails3/plugins/
+!examples/wails3/plugins/*.plugs
 
 # IDE / OS
 .idea/
