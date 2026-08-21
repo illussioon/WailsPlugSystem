@@ -1,0 +1,7 @@
+body {
+  --wailsplugs-accent: #2563eb;
+}
+
+#app-title {
+  color: var(--wailsplugs-accent);
+}

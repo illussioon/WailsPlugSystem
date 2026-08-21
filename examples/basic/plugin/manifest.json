@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "id": "example.welcome",
+  "name": "Welcome Example",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "priority": 50,
+  "permissions": ["html", "css"]
+}

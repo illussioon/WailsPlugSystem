@@ -1,0 +1,91 @@
+package wailsplugs
+
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+type staticLoader []Package
+
+func (s staticLoader) Load(context.Context) ([]Package, error) { return s, nil }
+
+func testManifest(id string, priority int, permissions ...Permission) Manifest {
+	return Manifest{FormatVersion: FormatVersion, ID: id, Name: id, Version: "1.0.0", APIVersion: APIVersion, Priority: priority, Permissions: permissions}
+}
+
+func TestPriorityConflictAndRollback(t *testing.T) {
+	low := Package{Manifest: testManifest("low", 1, PermissionHTML), Patches: []Patch{{ID: "title", Kind: PatchSetText, Selector: "#title", Value: "low", ConflictKey: "title"}}}
+	high := Package{Manifest: testManifest("high", 10, PermissionHTML), Patches: []Patch{{ID: "title", Kind: PatchSetText, Selector: "#title", Value: "high", ConflictKey: "title"}}}
+	manager := NewManager(ManagerOptions{Loader: staticLoader{low, high}, StrictDependencies: true})
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Render(`<html><head></head><body><h1 id="title">original</h1></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.HTML, ">high</h1>") {
+		t.Fatalf("high priority patch did not win: %s", result.HTML)
+	}
+	if !result.Decisions[0].Applied || result.Decisions[1].Applied {
+		t.Fatalf("unexpected decisions: %#v", result.Decisions)
+	}
+	if !strings.Contains(result.Decisions[1].Reason, "lower priority") {
+		t.Fatalf("missing conflict reason: %#v", result.Decisions[1])
+	}
+	manager.packages = map[string]Package{}
+	rolledBack, err := manager.Render(`<html><head></head><body><h1 id="title">original</h1></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rolledBack.HTML, ">original</h1>") {
+		t.Fatalf("render did not roll back: %s", rolledBack.HTML)
+	}
+}
+
+func TestSanitizerRemovesDangerousMarkup(t *testing.T) {
+	item := Package{Manifest: testManifest("safe", 1, PermissionHTML), Patches: []Patch{{Kind: PatchAppendHTML, Selector: "body", Value: `<div onclick="evil()"><a href="javascript:alert(1)">safe</a><script>alert(1)</script></div>`}}}
+	manager := NewManager(ManagerOptions{Loader: staticLoader{item}, StrictDependencies: true})
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Render(`<html><head></head><body></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"onclick", "javascript:", "<script"} {
+		if strings.Contains(strings.ToLower(result.HTML), forbidden) {
+			t.Fatalf("sanitizer left %q in %s", forbidden, result.HTML)
+		}
+	}
+	if !strings.Contains(result.HTML, ">safe</a>") {
+		t.Fatalf("safe text missing: %s", result.HTML)
+	}
+}
+
+func TestJavaScriptRequiresExplicitPolicy(t *testing.T) {
+	item := Package{
+		Manifest: testManifest("script", 1, PermissionJS),
+		Patches:  []Patch{{Kind: PatchInjectJS, Asset: "assets/app.js"}},
+		Assets:   map[string][]byte{"assets/app.js": []byte("window.__plugin_loaded = true;")},
+	}
+	manager := NewManager(ManagerOptions{Loader: staticLoader{item}})
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Render(`<html><head></head><body></body></html>`); err == nil {
+		t.Fatal("JavaScript was injected while policy was disabled")
+	}
+	manager = NewManager(ManagerOptions{Loader: staticLoader{item}, AllowJavaScript: true})
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Render(`<html><head></head><body></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.HTML, "__plugin_loaded") {
+		t.Fatalf("JavaScript was not injected with explicit policy: %s", result.HTML)
+	}
+}

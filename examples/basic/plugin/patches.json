@@ -1,0 +1,15 @@
+[
+  {
+    "id": "welcome-title",
+    "kind": "set_text",
+    "selector": "#app-title",
+    "value": "Welcome from .plugs",
+    "conflict_key": "app-title"
+  },
+  {
+    "id": "welcome-css",
+    "kind": "inject_css",
+    "asset": "assets/welcome.css",
+    "conflict_key": "welcome-css"
+  }
+]
