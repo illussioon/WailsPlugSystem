@@ -1,10 +1,6 @@
 name: Multi-Plugin Demo macOS arm64
 
 on:
-  push:
-    paths:
-      - 'examples/encrypted-demo/**'
-      - '.github/workflows/demo-macos-arm64.yml'
   workflow_dispatch:
 
 permissions:
@@ -66,76 +62,4 @@ jobs:
         with:
           name: WailsPlugSystem-macos-arm64
           path: examples/multi-plugin-demo/WailsPlugSystem-macos-arm64.zip
-          if-no-files-found: error
-
-  build-encrypted-demo:
-    runs-on: macos-14
-    defaults:
-      run:
-        working-directory: examples/encrypted-demo
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.x'
-          cache: true
-
-      - name: Prepare demo key
-        run: printf '%s' '4f8d2c7a1e5b9036d4c8a2f7b1e6930a5c7d9f2b4a6e8c1d3f5b7a9c0e2d4f6a' > demo.key
-
-      - name: Tidy demo module
-        run: go mod tidy
-
-      - name: Build encrypted plugin
-        run: go run ./plugin-src/private -key-file ./demo.key -output ./plugins/private-encrypted.plugs
-
-      - name: Test encrypted archive
-        run: |
-          test "$(unzip -Z1 plugins/private-encrypted.plugs | grep -c '^manifest.json$')" = 1
-          test "$(unzip -Z1 plugins/private-encrypted.plugs | grep -c '^payload.bin$')" = 1
-          test "$(unzip -Z1 plugins/private-encrypted.plugs | grep -c '^patches.json$')" = 0
-          ! unzip -p plugins/private-encrypted.plugs payload.bin | grep -a 'Encrypted plugin is active'
-
-      - name: Build one Wails production host
-        env:
-          CGO_ENABLED: '1'
-          CGO_LDFLAGS: '-framework UniformTypeIdentifiers'
-          MACOSX_DEPLOYMENT_TARGET: '10.13'
-        run: |
-          rm -rf release/WailsPlugSystem-encrypted-macos-arm64
-          mkdir -p release/WailsPlugSystem-encrypted-macos-arm64/plugins
-          go build -tags production -trimpath -ldflags='-s -w' -o release/WailsPlugSystem-encrypted-macos-arm64/wailsplugs-encrypted-demo .
-
-      - name: Package one host and encrypted plugin
-        run: |
-          cp demo.key release/WailsPlugSystem-encrypted-macos-arm64/demo.key
-          cp plugins/private-encrypted.plugs release/WailsPlugSystem-encrypted-macos-arm64/plugins/private-encrypted.plugs
-          cat > release/WailsPlugSystem-encrypted-macos-arm64/README.md <<'README'
-# WailsPlugSystem Encrypted Demo — macOS Apple Silicon
-
-This package contains one native Wails production host binary and one encrypted `.plugs` archive.
-
-```bash
-chmod +x wailsplugs-encrypted-demo
-./wailsplugs-encrypted-demo
-```
-
-The host reads `./demo.key`, decrypts and verifies `plugins/private-encrypted.plugs`, then renders the plugin panel. To test fail-closed behavior, rename `demo.key` and launch again. The window remains available, but the plugin is not activated. Restore the key and click **Reload with demo.key**.
-
-`demo.key` is intentionally included only as a reproducible test key. Never ship a reusable key this way in production; use Keychain, a license service, or a device/account-bound key provider.
-README
-          (cd release/WailsPlugSystem-encrypted-macos-arm64 && shasum -a 256 wailsplugs-encrypted-demo plugins/private-encrypted.plugs demo.key > SHA256SUMS)
-          cd release
-          rm -f WailsPlugSystem-encrypted-macos-arm64.zip WailsPlugSystem-encrypted-macos-arm64.zip.sha256
-          zip -qr WailsPlugSystem-encrypted-macos-arm64.zip WailsPlugSystem-encrypted-macos-arm64
-          shasum -a 256 WailsPlugSystem-encrypted-macos-arm64.zip > WailsPlugSystem-encrypted-macos-arm64.zip.sha256
-
-      - name: Upload encrypted demo artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WailsPlugSystem-encrypted-macos-arm64
-          path: examples/encrypted-demo/release/WailsPlugSystem-encrypted-macos-arm64.zip
           if-no-files-found: error
