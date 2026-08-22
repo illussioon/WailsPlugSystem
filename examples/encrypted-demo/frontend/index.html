@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WailsPlugSystem Encrypted Plugin Lab</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app-shell">
+    <header id="host-header">
+      <div class="host-brand">
+        <span class="host-kicker">WailsPlugSystem v0.7.0</span>
+        <h1>Encrypted Plugin Lab</h1>
+      </div>
+      <div id="plugin-header-slot" aria-label="Plugin header slot"></div>
+    </header>
+    <div id="app-layout">
+      <aside id="host-sidebar">
+        <div class="host-panel-label">Host navigation</div>
+        <nav id="plugin-leftmenu-slot" aria-label="Plugin menu slot"></nav>
+      </aside>
+      <main id="host-main">
+        <section class="hero">
+          <span class="eyebrow">AES-256-GCM demo</span>
+          <h2>The host decrypts a plugin only when the key is available.</h2>
+          <p>The encrypted archive exposes <code>manifest.json</code> and <code>payload.bin</code>; its HTML, CSS, JavaScript, and assets are loaded only after authenticated decryption.</p>
+          <div class="hero-actions">
+            <button id="reload-plugins" type="button">Reload with demo.key</button>
+            <button id="refresh-report" type="button">Refresh report</button>
+            <span id="host-status" class="status-pill">Waiting for host status</span>
+          </div>
+        </section>
+        <section class="security-card">
+          <strong>Safe test flow</strong>
+          <span>Remove or rename <code>demo.key</code>, launch again, and the encrypted plugin must fail closed. Restore the key and click reload; the panel should appear.</span>
+        </section>
+        <section id="plugin-tester-slot" aria-label="Encrypted plugin slot"></section>
+        <section id="plugin-report" class="report-grid" aria-label="Active plugin report"></section>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

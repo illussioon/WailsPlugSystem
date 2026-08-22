@@ -1,0 +1,42 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  --host-accent: #38bdf8;
+  --host-muted: #94a3b8;
+  --host-panel: rgba(30, 41, 59, 0.74);
+  --host-border: rgba(148, 163, 184, 0.18);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 960px; background: radial-gradient(circle at 85% 0%, #1e3a5f 0, #0f172a 42%); }
+button { font: inherit; }
+code { color: #bae6fd; }
+#app-shell { min-height: 100vh; }
+#host-header { min-height: 92px; padding: 24px 34px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--host-border); background: rgba(15, 23, 42, 0.76); backdrop-filter: blur(18px); }
+.host-kicker, .eyebrow, .host-panel-label { color: var(--host-accent); text-transform: uppercase; letter-spacing: .14em; font-size: 11px; font-weight: 700; }
+.host-brand h1 { margin: 4px 0 0; font-size: 24px; letter-spacing: -.03em; }
+#app-layout { display: grid; grid-template-columns: 228px 1fr; min-height: calc(100vh - 92px); }
+#host-sidebar { padding: 28px 18px; border-right: 1px solid var(--host-border); background: rgba(15, 23, 42, 0.54); }
+.host-panel-label { margin: 0 12px 14px; color: var(--host-muted); }
+#host-main { max-width: 1080px; width: 100%; padding: 38px 42px 60px; margin: 0 auto; }
+.hero { padding: 28px; border: 1px solid var(--host-border); border-radius: 22px; background: linear-gradient(135deg, rgba(30, 41, 59, .88), rgba(15, 23, 42, .74)); box-shadow: 0 24px 70px rgba(0, 0, 0, .2); }
+.hero h2 { margin: 9px 0 10px; font-size: 32px; letter-spacing: -.04em; }
+.hero p { max-width: 720px; margin: 0; color: var(--host-muted); line-height: 1.65; }
+.hero-actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+.hero-actions button { border: 0; border-radius: 10px; padding: 10px 15px; color: #082f49; background: #7dd3fc; cursor: pointer; font-weight: 700; }
+.hero-actions button:hover { background: #bae6fd; }
+.security-card { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; padding: 15px 18px; border: 1px solid rgba(250, 204, 21, .25); border-radius: 14px; color: #fef9c3; background: rgba(113, 63, 18, .22); font-size: 12px; line-height: 1.5; }
+.security-card span { color: #fde68a; }
+.status-pill { border: 1px solid rgba(56, 189, 248, .35); border-radius: 999px; padding: 8px 12px; color: #bae6fd; font-size: 12px; }
+#plugin-header-slot:empty::after { content: "No plugin header loaded"; color: var(--host-muted); font-size: 13px; }
+#plugin-leftmenu-slot:empty::after, #plugin-tester-slot:empty::after { content: "Plugin slot is empty"; display: block; color: var(--host-muted); font-size: 12px; padding: 12px; border: 1px dashed var(--host-border); border-radius: 10px; }
+#plugin-leftmenu-slot { display: grid; gap: 8px; }
+#plugin-tester-slot { margin-top: 22px; }
+.report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+.report-card { padding: 18px; border: 1px solid var(--host-border); border-radius: 16px; background: var(--host-panel); }
+.report-card h3 { margin: 0 0 8px; font-size: 16px; }
+.report-card p { margin: 5px 0; color: var(--host-muted); font-size: 12px; line-height: 1.45; }
+.report-card .priority { display: inline-flex; margin-bottom: 10px; border-radius: 999px; padding: 4px 8px; color: #0f172a; background: #fbbf24; font-size: 11px; font-weight: 800; }
+@media (max-width: 980px) { body { min-width: 0; } #app-layout { grid-template-columns: 190px 1fr; } #host-main { padding: 28px 24px; } }
