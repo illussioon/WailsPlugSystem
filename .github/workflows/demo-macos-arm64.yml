@@ -1,0 +1,62 @@
+name: Multi-Plugin Demo macOS arm64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-demo:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: examples/multi-plugin-demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Test demo
+        run: |
+          go mod download
+          go test ./...
+          go test -race ./...
+
+      - name: Rebuild plugin archives
+        run: |
+          go run ./plugin-src/tester -output ./plugins/tester.plugs
+          go run ./plugin-src/leftmenu -output ./plugins/leftmenu.plugs
+          go run ./plugin-src/header -output ./plugins/header.plugs
+
+      - name: Build one Wails production host
+        env:
+          CGO_ENABLED: '1'
+          GOOS: darwin
+          GOARCH: arm64
+        run: go build -tags production -trimpath -ldflags='-s -w' -o ./wailsplugs-demo .
+
+      - name: Package one host and plugins
+        run: |
+          rm -rf release
+          mkdir -p release/plugins
+          cp ./wailsplugs-demo release/wailsplugs-demo
+          cp ./plugins/*.plugs release/plugins/
+          cp ./README.md release/README.md
+          chmod +x release/wailsplugs-demo
+          cd release
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 > SHA256SUMS
+          cd ..
+          zip -qr WailsPlugSystem-macos-arm64.zip release
+
+      - name: Upload macOS arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WailsPlugSystem-macos-arm64
+          path: examples/multi-plugin-demo/WailsPlugSystem-macos-arm64.zip
+          if-no-files-found: error

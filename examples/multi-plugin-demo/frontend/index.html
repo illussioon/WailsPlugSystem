@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WailsPlugSystem Multi-Plugin Lab</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app-shell">
+    <header id="host-header">
+      <div class="host-brand">
+        <span class="host-kicker">WailsPlugSystem</span>
+        <h1>Multi-Plugin Lab</h1>
+      </div>
+      <div id="plugin-header-slot" aria-label="Plugin header slot"></div>
+    </header>
+    <div id="app-layout">
+      <aside id="host-sidebar">
+        <div class="host-panel-label">Host navigation</div>
+        <nav id="plugin-leftmenu-slot" aria-label="Plugin menu slot"></nav>
+      </aside>
+      <main id="host-main">
+        <section class="hero">
+          <span class="eyebrow">Host application</span>
+          <h2>The host starts intentionally empty.</h2>
+          <p>Everything below is supplied by independent plugins loaded from <code>./plugins</code>.</p>
+          <div class="hero-actions">
+            <button id="refresh-report" type="button">Refresh plugin report</button>
+            <span id="host-status" class="status-pill">Waiting for plugin report</span>
+          </div>
+        </section>
+        <section id="plugin-tester-slot" aria-label="Plugin tester slot"></section>
+        <section id="plugin-report" class="report-grid" aria-label="Active plugin report"></section>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
