@@ -22,17 +22,18 @@ jobs:
           go-version: '1.25.x'
           cache: true
 
+      - name: Rebuild plugin archives
+        run: |
+          mkdir -p ./plugins
+          go run ./plugin-src/tester -output ./plugins/tester.plugs
+          go run ./plugin-src/leftmenu -output ./plugins/leftmenu.plugs
+          go run ./plugin-src/header -output ./plugins/header.plugs
+
       - name: Test demo
         run: |
           go mod download
           go test ./...
           go test -race ./...
-
-      - name: Rebuild plugin archives
-        run: |
-          go run ./plugin-src/tester -output ./plugins/tester.plugs
-          go run ./plugin-src/leftmenu -output ./plugins/leftmenu.plugs
-          go run ./plugin-src/header -output ./plugins/header.plugs
 
       - name: Build one Wails production host
         env:
