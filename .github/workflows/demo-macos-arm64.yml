@@ -1,6 +1,10 @@
 name: Multi-Plugin Demo macOS arm64
 
 on:
+  push:
+    paths:
+      - 'examples/encrypted-demo/**'
+      - '.github/workflows/demo-macos-arm64.yml'
   workflow_dispatch:
 
 permissions:
