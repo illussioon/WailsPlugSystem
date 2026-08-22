@@ -40,6 +40,8 @@ jobs:
           CGO_ENABLED: '1'
           GOOS: darwin
           GOARCH: arm64
+          CGO_LDFLAGS: '-framework UniformTypeIdentifiers'
+          MACOSX_DEPLOYMENT_TARGET: '10.13'
         run: go build -tags production -trimpath -ldflags='-s -w' -o ./wailsplugs-demo .
 
       - name: Package one host and plugins
