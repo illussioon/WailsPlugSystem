@@ -1,0 +1,14 @@
+.wailsplugs-vue-card {
+  display: grid;
+  gap: 0.5rem;
+  color: inherit;
+  font: inherit;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: var(--wails-plugin-radius, 0.75rem);
+}
+
+.wailsplugs-vue-card span {
+  opacity: 0.72;
+  font-size: 0.9em;
+}

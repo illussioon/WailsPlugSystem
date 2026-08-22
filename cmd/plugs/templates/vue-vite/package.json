@@ -1,0 +1,14 @@
+{
+  "name": "wailsplugs-vue-plugin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "latest",
+    "vite": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {}
+}

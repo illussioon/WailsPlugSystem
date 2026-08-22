@@ -16,7 +16,7 @@ The low-level root package remains available for advanced integrations and backw
 ## Install
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.5.0
+go get github.com/illussioon/WailsPlugSystem@v0.6.0
 ```
 
 ## Minimal host application
@@ -74,7 +74,16 @@ go build ./...
 
 See the [English SDK guide](./docs/README.md) for Wails integration, SHA-256 allowlists, conflict priorities, security model, CLI usage, publishing instructions, and file-based authoring.
 
-For larger plugin interfaces, use `AppendHTMLFile`, `CSSFile`, `JSFile`, `AssetFile`, and `AssetsDir` to build a `.plugs` archive from normal project files instead of embedding long HTML/CSS/JS strings in Go.
+For larger plugin interfaces, use `AppendHTMLFile`, `CSSFile`, `JSFile`, `AssetFile`, and `AssetsDir` to build a `.plugs` archive from normal project files instead of embedding long HTML/CSS/JS strings in Go. Use `JSFileExternal`, `CSSFileExternal`, and `AssetsDirAs` for Vite code splitting and static assets.
+
+The CLI includes React/Vue starters and a cross-platform development watcher:
+
+```bash
+plugs init --template react-vite --output ./my-plugin
+plugs watch --input ./plugin-source --output ./plugins/my-plugin.plugs
+```
+
+The host-side `client.Watch` facade can reload the active plugin snapshot after `.plugs` changes. `HostCSS()` keeps plugin mounts in the host document so they can inherit host typography, CSS variables, and reset rules.
 
 ## Wails IP demo
 

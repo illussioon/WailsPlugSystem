@@ -69,6 +69,10 @@ func (d *Definition) HTML() *Definition { return d.Permission(wailsplugs.Permiss
 // CSS enables CSS asset injection.
 func (d *Definition) CSSPermission() *Definition { return d.Permission(wailsplugs.PermissionCSS) }
 
+// HostCSS declares that this plugin intentionally relies on the host document's
+// CSS cascade, variables, reset, typography, and inherited custom properties.
+func (d *Definition) HostCSS() *Definition { return d.Permission(wailsplugs.PermissionHostCSS) }
+
 // JavaScript enables JavaScript asset injection. The host must also set AllowJavaScript.
 func (d *Definition) JavaScript() *Definition { return d.Permission(wailsplugs.PermissionJS) }
 
@@ -169,9 +173,17 @@ func (d *Definition) AssetFile(assetPath, sourcePath string) *Definition {
 // AssetsDir recursively adds regular files from sourceDir under assets/.
 // Symlinks and invalid archive paths are rejected.
 func (d *Definition) AssetsDir(sourceDir string) *Definition {
+	return d.AssetsDirAs(sourceDir, "assets")
+}
+
+// AssetsDirAs recursively adds regular files from sourceDir under archiveDir.
+// archiveDir must be inside the archive assets/ namespace. This is useful for
+// preserving Vite/Rollup chunk directories next to an external entrypoint.
+func (d *Definition) AssetsDirAs(sourceDir, archiveDir string) *Definition {
 	if d.err != nil {
 		return d
 	}
+	archiveDir = normalizeAssetPath(archiveDir)
 	info, err := os.Stat(sourceDir)
 	if err != nil {
 		return d.rememberError(fmt.Errorf("wailsplugs/plugin: stat assets directory %q: %w", sourceDir, err))
@@ -193,7 +205,7 @@ func (d *Definition) AssetsDir(sourceDir string) *Definition {
 		if err != nil {
 			return err
 		}
-		assetPath := filepath.ToSlash(filepath.Join("assets", relative))
+		assetPath := filepath.ToSlash(filepath.Join(archiveDir, relative))
 		if !wailsplugs.ValidAssetForPack(assetPath) {
 			return fmt.Errorf("wailsplugs/plugin: invalid asset path %q", assetPath)
 		}
@@ -237,6 +249,15 @@ func (d *Definition) CSSFile(id, assetPath, sourcePath string, options ...PatchO
 	return d.AddCSS(id, assetPath, data, options...)
 }
 
+// CSSFileExternal reads sourcePath and injects it as an external stylesheet URL.
+func (d *Definition) CSSFileExternal(id, assetPath, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read CSS file %q: %w", sourcePath, err))
+	}
+	return d.AddCSSExternal(id, assetPath, data, options...)
+}
+
 // JSFile reads sourcePath and adds it as a JavaScript asset with an inject_js patch.
 func (d *Definition) JSFile(id, assetPath, sourcePath string, options ...PatchOption) *Definition {
 	data, err := readSourceFile(sourcePath)
@@ -244,6 +265,15 @@ func (d *Definition) JSFile(id, assetPath, sourcePath string, options ...PatchOp
 		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read JavaScript file %q: %w", sourcePath, err))
 	}
 	return d.AddJS(id, assetPath, data, options...)
+}
+
+// JSFileExternal reads sourcePath and injects it as an external module URL.
+func (d *Definition) JSFileExternal(id, assetPath, sourcePath string, options ...PatchOption) *Definition {
+	data, err := readSourceFile(sourcePath)
+	if err != nil {
+		return d.rememberError(fmt.Errorf("wailsplugs/plugin: read JavaScript file %q: %w", sourcePath, err))
+	}
+	return d.AddJSExternal(id, assetPath, data, options...)
 }
 
 // CSS adds a CSS asset and an inject_css patch.
@@ -257,10 +287,34 @@ func (d *Definition) AddCSS(id, assetPath string, data []byte, options ...PatchO
 	return d
 }
 
+// AddCSSExternal adds a CSS asset as an external stylesheet URL. This keeps
+// relative url() references and imported resources resolvable through the asset route.
+func (d *Definition) AddCSSExternal(id, assetPath string, data []byte, options ...PatchOption) *Definition {
+	d.CSSPermission().Asset(assetPath, data)
+	patch := wailsplugs.Patch{ID: id, Kind: wailsplugs.PatchInjectCSS, Asset: normalizeAssetPath(assetPath), External: true}
+	for _, option := range options {
+		option(&patch)
+	}
+	d.patches = append(d.patches, patch)
+	return d
+}
+
 // JS adds a JavaScript asset and an inject_js patch. Host policy still applies.
 func (d *Definition) AddJS(id, assetPath string, data []byte, options ...PatchOption) *Definition {
 	d.JavaScript().Asset(assetPath, data)
 	patch := wailsplugs.Patch{ID: id, Kind: wailsplugs.PatchInjectJS, Asset: normalizeAssetPath(assetPath)}
+	for _, option := range options {
+		option(&patch)
+	}
+	d.patches = append(d.patches, patch)
+	return d
+}
+
+// AddJSExternal adds a JavaScript asset as an external module URL. Use this
+// for Vite/Rollup code splitting and dynamic imports.
+func (d *Definition) AddJSExternal(id, assetPath string, data []byte, options ...PatchOption) *Definition {
+	d.JavaScript().Asset(assetPath, data)
+	patch := wailsplugs.Patch{ID: id, Kind: wailsplugs.PatchInjectJS, Asset: normalizeAssetPath(assetPath), External: true}
 	for _, option := range options {
 		option(&patch)
 	}
@@ -414,6 +468,9 @@ func readSourceFile(path string) ([]byte, error) {
 
 func normalizeAssetPath(value string) string {
 	value = filepath.ToSlash(strings.TrimSpace(value))
+	if value == "assets" {
+		return value
+	}
 	if !strings.HasPrefix(value, "assets/") {
 		value = "assets/" + value
 	}

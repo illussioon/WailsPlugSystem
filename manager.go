@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"net/url"
+	"path"
 	"sort"
 	"strings"
 
@@ -111,6 +113,30 @@ func validateDependencies(packages map[string]Package, strict bool) error {
 		}
 	}
 	return nil
+}
+
+// Asset returns a copy of an active plugin asset by its archive-relative path.
+// assetPath may be supplied as either "assets/file.js" or "file.js".
+func (m *Manager) Asset(pluginID, assetPath string) ([]byte, bool) {
+	assetPath = strings.TrimPrefix(assetPath, "/")
+	if !strings.HasPrefix(assetPath, "assets/") {
+		assetPath = "assets/" + assetPath
+	}
+	cleaned := path.Clean(assetPath)
+	if !validAssetPath(cleaned) {
+		return nil, false
+	}
+	m.mu.RLock()
+	item, ok := m.packages[pluginID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	data, ok := item.Assets[cleaned]
+	if !ok {
+		return nil, false
+	}
+	return append([]byte(nil), data...), true
 }
 
 func (m *Manager) Packages() []Package {
@@ -330,20 +356,50 @@ func (m *Manager) injectAsset(document *xhtml.Node, item Package, patch Patch) e
 		if !item.Manifest.HasPermission(PermissionCSS) {
 			return fmt.Errorf("%w: plugin lacks css permission", ErrPermission)
 		}
-		style := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Style, Data: "style"}
-		style.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: string(data)})
-		head.AppendChild(style)
+		if patch.External {
+			attrs := []xhtml.Attribute{{Key: "rel", Val: "stylesheet"}, {Key: "href", Val: assetURL(item, patch.Asset)}, {Key: "data-wailsplugs-plugin", Val: item.Manifest.ID}}
+			if item.Manifest.HasPermission(PermissionHostCSS) {
+				attrs = append(attrs, xhtml.Attribute{Key: "data-wailsplugs-host-css", Val: "true"})
+			}
+			link := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Link, Data: "link", Attr: attrs}
+
+			head.AppendChild(link)
+		} else {
+			attrs := []xhtml.Attribute{{Key: "data-wailsplugs-plugin", Val: item.Manifest.ID}}
+			if item.Manifest.HasPermission(PermissionHostCSS) {
+				attrs = append(attrs, xhtml.Attribute{Key: "data-wailsplugs-host-css", Val: "true"})
+			}
+			style := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Style, Data: "style", Attr: attrs}
+			style.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: string(data)})
+
+			head.AppendChild(style)
+		}
 	case PatchInjectJS:
 		if !m.allowJavaScript || !item.Manifest.HasPermission(PermissionJS) {
 			return fmt.Errorf("%w: JavaScript disabled or permission missing", ErrPermission)
 		}
-		script := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Script, Data: "script", Attr: []xhtml.Attribute{{Key: "type", Val: "module"}}}
-		script.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: string(data)})
-		head.AppendChild(script)
+		if patch.External {
+			script := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Script, Data: "script", Attr: []xhtml.Attribute{{Key: "type", Val: "module"}, {Key: "src", Val: assetURL(item, patch.Asset)}, {Key: "data-wailsplugs-plugin", Val: item.Manifest.ID}}}
+
+			head.AppendChild(script)
+		} else {
+			script := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Script, Data: "script", Attr: []xhtml.Attribute{{Key: "type", Val: "module"}}}
+			script.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: string(data)})
+			head.AppendChild(script)
+		}
+
 	default:
 		return fmt.Errorf("unsupported asset patch %q", patch.Kind)
 	}
 	return nil
+}
+
+func assetURL(item Package, assetPath string) string {
+	parts := strings.Split(strings.TrimPrefix(assetPath, "assets/"), "/")
+	for index := range parts {
+		parts[index] = url.PathEscape(parts[index])
+	}
+	return AssetEndpointPrefix + url.PathEscape(item.Manifest.ID) + "/" + strings.Join(parts, "/")
 }
 
 func firstNode(root *xhtml.Node, predicate func(*xhtml.Node) bool) *xhtml.Node {

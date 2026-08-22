@@ -161,3 +161,37 @@ func TestPluginLifecycleMessages(t *testing.T) {
 		t.Fatalf("unexpected final unload messages: %#v", messages)
 	}
 }
+
+func TestExternalAssetsUsePluginRoute(t *testing.T) {
+	item := Package{
+		Manifest: testManifest("external", 1, PermissionCSS, PermissionJS, PermissionHostCSS),
+		Patches: []Patch{
+			{ID: "styles", Kind: PatchInjectCSS, Asset: "assets/styles/app.css", External: true},
+			{ID: "bundle", Kind: PatchInjectJS, Asset: "assets/chunks/app.js", External: true},
+		},
+		Assets: map[string][]byte{
+			"assets/styles/app.css": []byte(`.app { color: red; }`),
+			"assets/chunks/app.js":  []byte(`import "./lazy.js";`),
+		},
+	}
+	manager := NewManager(ManagerOptions{Loader: staticLoader{item}, AllowJavaScript: true})
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Render(`<html><head></head><body><main class="app"></main></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		`href="/__wailsplugs/assets/external/styles/app.css"`,
+		`src="/__wailsplugs/assets/external/chunks/app.js"`,
+		`data-wailsplugs-host-css="true"`,
+	} {
+		if !strings.Contains(result.HTML, expected) {
+			t.Fatalf("external asset route missing %q: %s", expected, result.HTML)
+		}
+	}
+	if strings.Contains(result.HTML, `import "./lazy.js"`) {
+		t.Fatalf("external script was unexpectedly inlined: %s", result.HTML)
+	}
+}

@@ -19,7 +19,10 @@ const (
 	PermissionCSS         Permission = "css"
 	PermissionJS          Permission = "js"
 	PermissionReplaceRoot Permission = "replace_root"
+	PermissionHostCSS     Permission = "host_css"
 )
+
+const AssetEndpointPrefix = "/__wailsplugs/assets/"
 
 var (
 	ErrInvalidManifest = errors.New("wailsplugs: invalid manifest")
@@ -84,6 +87,7 @@ type Patch struct {
 	Asset       string    `json:"asset,omitempty"`
 	ConflictKey string    `json:"conflict_key,omitempty"`
 	Optional    bool      `json:"optional,omitempty"`
+	External    bool      `json:"external,omitempty"`
 }
 
 type Package struct {

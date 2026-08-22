@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	wailsplugs "github.com/illussioon/WailsPlugSystem"
+	"github.com/illussioon/WailsPlugSystem/devwatch"
 	"github.com/illussioon/WailsPlugSystem/integration/httpmiddleware"
 	"github.com/illussioon/WailsPlugSystem/loader"
 )
@@ -33,7 +35,9 @@ type Options struct {
 
 // Client is the recommended host-side facade over the WailsPlugSystem runtime.
 type Client struct {
-	manager *wailsplugs.Manager
+	manager   *wailsplugs.Manager
+	directory string
+	recursive bool
 }
 
 // New creates a Client. Exactly one loading strategy is selected in this order:
@@ -58,14 +62,18 @@ func New(options Options) (*Client, error) {
 	if packageLoader == nil {
 		return nil, fmt.Errorf("wailsplugs/client: configure Loader, Directory, or SHA256")
 	}
-	return &Client{manager: wailsplugs.NewManager(wailsplugs.ManagerOptions{
-		Loader:             packageLoader,
-		HostLogger:         options.HostLogger,
-		AllowJavaScript:    options.AllowJavaScript,
-		AllowRootReplace:   options.AllowRootReplace,
-		StrictDependencies: options.StrictDependencies,
-		MaxPlugins:         options.MaxPlugins,
-	})}, nil
+	return &Client{
+		manager: wailsplugs.NewManager(wailsplugs.ManagerOptions{
+			Loader:             packageLoader,
+			HostLogger:         options.HostLogger,
+			AllowJavaScript:    options.AllowJavaScript,
+			AllowRootReplace:   options.AllowRootReplace,
+			StrictDependencies: options.StrictDependencies,
+			MaxPlugins:         options.MaxPlugins,
+		}),
+		directory: options.Directory,
+		recursive: options.Recursive,
+	}, nil
 }
 
 // Reload atomically loads the current plugin snapshot.
@@ -98,6 +106,50 @@ func (c *Client) Packages() []wailsplugs.Package {
 		return nil
 	}
 	return c.manager.Packages()
+}
+
+// WatchOptions configures development-time plugin hot reload.
+type WatchOptions struct {
+	Directory  string
+	Recursive  bool
+	Interval   time.Duration
+	RunInitial bool
+	OnReload   func(context.Context, devwatch.Change) error
+}
+
+// Watch monitors plugin files and reloads the client after each change. It is
+// intended for development; production hosts should use an explicit reload flow.
+func (c *Client) Watch(ctx context.Context, options WatchOptions) error {
+	if c == nil || c.manager == nil {
+		return fmt.Errorf("wailsplugs/client: nil client")
+	}
+	if options.Directory == "" {
+		options.Directory = c.directory
+		options.Recursive = c.recursive
+	}
+	if options.Directory == "" {
+		return fmt.Errorf("wailsplugs/client: watch directory is required")
+	}
+	return devwatch.Watch(ctx, devwatch.Options{
+		Directory:  options.Directory,
+		Recursive:  options.Recursive,
+		Interval:   options.Interval,
+		Extensions: []string{".plugs"},
+		RunInitial: options.RunInitial,
+		OnChange: func(ctx context.Context, change devwatch.Change) error {
+			if err := c.Reload(ctx); err != nil {
+				return err
+			}
+			if options.OnReload != nil {
+				return options.OnReload(ctx, change)
+			}
+			return nil
+		},
+	})
+}
+
+func directoryFromOptions(options Options) string {
+	return options.Directory
 }
 
 // Manager exposes the advanced low-level runtime for integrations that need it.

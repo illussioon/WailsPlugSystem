@@ -7,7 +7,7 @@
 ## Установка
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.5.0
+go get github.com/illussioon/WailsPlugSystem@v0.6.0
 ```
 
 Ядро не импортирует Wails и использует обычный `net/http`, поэтому пакет собирается для Linux, Windows и macOS.
@@ -121,6 +121,72 @@ Builder автоматически записывает SHA-256 каждого a
 
 HTML fragments проходят sanitizer: удаляются script-like элементы, event-handler attributes и опасные URL schemes. JavaScript требует одновременно `plugin.JavaScript()` и `client.Options{AllowJavaScript: true}`. JavaScript не sandboxed и выполняется с обычными правами WebView, поэтому разрешайте его только доверенным поставщикам. Для недоверенных плагинов используйте SHA-256 allowlist, отключённый JavaScript и не включайте `ReplaceRoot`.
 
+## React и Vue templates
+
+CLI содержит готовые шаблоны:
+
+```bash
+plugs init --template react-vite --output ./my-react-plugin
+plugs init --template vue-vite --output ./my-vue-plugin
+```
+
+Шаблон содержит Vite-проект, Go entrypoint плагина, mount HTML, stylesheet с наследованием host CSS и deterministic entry/chunk layout. Запуск сборки: `npm install`, `npm run build`, затем `go run ./plugin`. Для Vite chunks используются `JSFileExternal` и `AssetsDirAs`.
+
+## Code splitting и static assets
+
+External injection обслуживает файлы плагина через:
+
+```text
+/__wailsplugs/assets/{plugin-id}/{asset-path}
+```
+
+Пример для Vite entrypoint и chunks:
+
+```go
+definition := plugin.New("acme.ui", "Acme UI", "1.0.0").
+    HostCSS().
+    CSSFileExternal("css", "assets/ui.css", "dist/ui.css").
+    JSFileExternal("entry", "assets/ui.js", "dist/ui.js").
+    AssetsDirAs("dist/chunks", "assets/chunks")
+```
+
+Runtime создаёт `<link>` и `<script type="module" src>` вместо inline-кода. Поэтому относительные imports, lazy chunks, картинки и fonts могут загружаться через тот же plugin route. External mode разрешён только для CSS/JS injection и сохраняет обычные permission checks.
+
+## Наследование CSS приложения
+
+Плагин монтируется в общий host document, а не в iframe. Явно укажите это через `HostCSS()`:
+
+```go
+definition := plugin.New("acme.panel", "Acme Panel", "1.0.0").
+    HostCSS().
+    AppendHTMLFile("mount", "body", "ui/mount.html").
+    CSSFileExternal("styles", "assets/panel.css", "ui/panel.css")
+```
+
+Плагин наследует `font`, `color`, CSS custom properties, reset rules и typography host-приложения. Не используйте iframe или shadow root, если нужно наследование. `HostCSS` — это metadata и не даёт дополнительных host API permissions.
+
+## Hot reload в development
+
+Host может отслеживать `.plugs` и автоматически вызывать `Reload`:
+
+```go
+err := app.Watch(ctx, client.WatchOptions{
+    Interval: 300 * time.Millisecond,
+    OnReload: func(ctx context.Context, change devwatch.Change) error {
+        // Здесь вызывается reload окна конкретной версии Wails.
+        return nil
+    },
+})
+```
+
+Для пересборки source-layout plugin при изменениях используйте:
+
+```bash
+plugs watch --input . --output ./plugins/acme.ui.plugs
+```
+
+Watcher использует polling, поэтому одинаково работает в Linux, Windows и macOS. Это development-инструмент; в production используйте explicit reload и verification.
+
 ## File-based authoring
 
 Для больших интерфейсов не обязательно вставлять HTML/CSS/JS строками. SDK прочитает обычные файлы проекта, проверит их, добавит в allowlist assets, рассчитает SHA-256 при упаковке и создаст нужные patches:
@@ -185,7 +251,7 @@ Wails.plugin.print.unload("Acme Plugin выгружен");
 ## CLI и публикация
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.5.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.6.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -194,7 +260,7 @@ plugs hash --file ./dist/my-plugin.plugs
 После публичного semver tag пакет подключается стандартно:
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.5.0
+go get github.com/illussioon/WailsPlugSystem@v0.6.0
 ```
 
 После публикации тега Go tooling и `pkg.go.dev` смогут индексировать модуль и его GoDoc.

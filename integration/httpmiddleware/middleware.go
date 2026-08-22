@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"strings"
 
 	wailsplugs "github.com/illussioon/WailsPlugSystem"
@@ -20,6 +23,10 @@ func New(manager *wailsplugs.Manager, next http.Handler) http.Handler {
 }
 
 func (m Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if strings.HasPrefix(request.URL.Path, wailsplugs.AssetEndpointPrefix) {
+		m.handleAsset(writer, request)
+		return
+	}
 	if request.URL.Path == wailsplugs.ConsoleEndpoint {
 		m.handleConsole(writer, request)
 		return
@@ -47,6 +54,44 @@ func (m Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 	capture.body.WriteString(result.HTML)
 	capture.header.Del("Content-Length")
 	copyResponse(writer, capture)
+}
+
+func (m Middleware) handleAsset(writer http.ResponseWriter, request *http.Request) {
+	if m.Manager == nil || (request.Method != http.MethodGet && request.Method != http.MethodHead) {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	rest := strings.TrimPrefix(request.URL.Path, wailsplugs.AssetEndpointPrefix)
+	separator := strings.IndexByte(rest, '/')
+	if separator <= 0 || separator == len(rest)-1 {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	pluginID, err := url.PathUnescape(rest[:separator])
+	if err != nil || pluginID == "" {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	assetPath, err := url.PathUnescape(rest[separator+1:])
+	if err != nil || strings.Contains(assetPath, "\\") {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	data, ok := m.Manager.Asset(pluginID, assetPath)
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	contentType := mime.TypeByExtension(filepath.Ext(assetPath))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	writer.Header().Set("Content-Type", contentType)
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
+	if request.Method != http.MethodHead {
+		_, _ = writer.Write(data)
+	}
 }
 
 func (m Middleware) handleConsole(writer http.ResponseWriter, request *http.Request) {

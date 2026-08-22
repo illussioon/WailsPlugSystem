@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0 — 2026-08-22
+
+Added React/Vue Vite plugin templates, CLI `plugs init`, external CSS/JavaScript injection, plugin static asset routes for code splitting and dynamic imports, `AssetsDirAs`, explicit `HostCSS` permission, and cross-platform polling hot reload through `client.Watch` and `plugs watch`. Added asset route, code-splitting, template scaffolding, watcher, and host CSS metadata coverage.
+
 ## 0.5.0 — 2026-08-21
 
 Added file-based plugin authoring helpers `AppendHTMLFile`, `ReplaceHTMLFile`, `CSSFile`, `JSFile`, `AssetFile`, and recursive `AssetsDir`. The SDK now reads source files at build time, validates regular files and archive paths, rejects symlinks and files larger than 8 MiB, and packages copied bytes with the existing SHA-256 allowlist.

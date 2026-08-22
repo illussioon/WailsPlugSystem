@@ -130,6 +130,9 @@ func validatePatches(patches []Patch) error {
 		default:
 			return fmt.Errorf("%w: unknown patch kind %q", ErrInvalidManifest, patch.Kind)
 		}
+		if patch.External && patch.Kind != PatchInjectCSS && patch.Kind != PatchInjectJS {
+			return fmt.Errorf("%w: patch %q external mode requires css/js injection", ErrInvalidManifest, patch.ID)
+		}
 		if patch.Kind != PatchInjectCSS && patch.Kind != PatchInjectJS && patch.Selector == "" {
 			return fmt.Errorf("%w: patch %q needs selector", ErrInvalidManifest, patch.ID)
 		}

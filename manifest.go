@@ -32,7 +32,7 @@ func (m Manifest) Validate() error {
 	seenPerms := map[Permission]bool{}
 	for _, permission := range m.Permissions {
 		switch permission {
-		case PermissionHTML, PermissionCSS, PermissionJS, PermissionReplaceRoot:
+		case PermissionHTML, PermissionCSS, PermissionJS, PermissionReplaceRoot, PermissionHostCSS:
 		default:
 			return fmt.Errorf("%w: unknown permission %q", ErrInvalidManifest, permission)
 		}

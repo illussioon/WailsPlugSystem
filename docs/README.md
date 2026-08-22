@@ -9,7 +9,7 @@ WailsPlugSystem is a Go SDK for loading, composing, and authoring portable `.plu
 ## 1. Install the SDK
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.5.0
+go get github.com/illussioon/WailsPlugSystem@v0.6.0
 ```
 
 The module contains no Wails dependency in its core. It is ordinary Go code and can be cross-compiled for Linux, Windows, and macOS. Wails is connected through the standard `net/http` asset handler interface.
@@ -165,6 +165,75 @@ _, err := definition.Build("dist/acme.react-ui.plugs")
 
 `AppendHTMLFile` and `ReplaceHTMLFile` use file contents as HTML fragments. `CSSFile` and `JSFile` inject files while keeping the existing JavaScript/CSS permission checks. `AssetFile` stores one arbitrary file, and `AssetsDir` recursively adds regular files under `assets/`. Symlinks, invalid archive paths, non-regular files, and files larger than 8 MiB are rejected. File paths are local build-time inputs; the resulting `.plugs` archive contains the bytes, not references to the developer's filesystem.
 
+### React and Vue plugin templates
+
+The CLI ships starter projects for React and Vue:
+
+```bash
+plugs init --template react-vite --output ./my-react-plugin
+plugs init --template vue-vite --output ./my-vue-plugin
+```
+
+Each template contains a Vite project, a Go plugin entrypoint, a mount HTML file, a host-CSS-aware stylesheet, and deterministic entry/chunk output. Build it with `npm install`, `npm run build`, and `go run ./plugin`. The template packages Vite output with `JSFileExternal` and `AssetsDirAs`, so dynamic imports remain usable after packaging.
+
+### Code splitting and static assets
+
+External injection serves plugin files through the runtime route:
+
+```text
+/__wailsplugs/assets/{plugin-id}/{asset-path}
+```
+
+Use external helpers for entrypoints and chunked bundles:
+
+```go
+definition := plugin.New("acme.ui", "Acme UI", "1.0.0").
+    HostCSS().
+    CSSFileExternal("css", "assets/ui.css", "dist/ui.css").
+    JSFileExternal("entry", "assets/ui.js", "dist/ui.js").
+    AssetsDirAs("dist/chunks", "assets/chunks")
+```
+
+The runtime generates `<link href>` and `<script type="module" src>` tags instead of inlining these files. Relative imports such as `./chunks/lazy-abc.js`, images, fonts, and other static assets can therefore be served from the same plugin route. `External` is allowed only for CSS/JS injection patches and still requires the normal CSS/JavaScript permissions.
+
+### Inheriting host application CSS
+
+A plugin is mounted into the host document, not an iframe. Declare the intent explicitly with `HostCSS()`:
+
+```go
+definition := plugin.New("acme.panel", "Acme Panel", "1.0.0").
+    HostCSS().
+    AppendHTMLFile("mount", "body", "ui/mount.html").
+    CSSFileExternal("styles", "assets/panel.css", "ui/panel.css")
+```
+
+This allows normal CSS inheritance: `font`, `color`, CSS custom properties, reset rules, and host typography can flow into the plugin mount. Do not create an iframe or shadow-root boundary if the plugin is intended to inherit host styles. `HostCSS` is explicit metadata; it does not grant extra JavaScript or host-API privileges.
+
+### Development hot reload
+
+For a host application, `client.Watch` watches `.plugs` files and calls `Reload` after changes:
+
+```go
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
+err := app.Watch(ctx, client.WatchOptions{
+    Interval: 300 * time.Millisecond,
+    OnReload: func(ctx context.Context, change devwatch.Change) error {
+        // Call the Wails-version-specific window reload here.
+        return nil
+    },
+})
+```
+
+The CLI can also rebuild a source-layout plugin while it changes:
+
+```bash
+plugs watch --input . --output ./plugins/acme.ui.plugs
+```
+
+The watcher is polling-based for consistent Linux, Windows, and macOS behavior. It is intended for development; production hosts should use explicit reload and verification flows.
+
 ### Console logging
 
 A plugin can write to the host/Wails console without manually creating a fetch call:
@@ -264,7 +333,7 @@ JavaScript is not a sandbox. When enabled, it runs with the host WebView's norma
 Manual source directories can still be packaged with the CLI:
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.5.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.6.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -308,7 +377,7 @@ Use semantic version tags:
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
-go get github.com/illussioon/WailsPlugSystem@v0.5.0
+go get github.com/illussioon/WailsPlugSystem@v0.6.0
 ```
 
 After a public tag is pushed, Go tooling can resolve the module and `pkg.go.dev` can index its documentation. The module path is:
