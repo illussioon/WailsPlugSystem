@@ -1,7 +1,14 @@
 name: Encrypted Demo macOS arm64
 
 on:
+  push:
+    paths:
+      - 'examples/encrypted-demo/**'
+      - '.github/workflows/encrypted-demo-macos-arm64.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-demo:
