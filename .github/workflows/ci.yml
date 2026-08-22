@@ -92,19 +92,19 @@ jobs:
           cp demo.key release/WailsPlugSystem-encrypted-macos-arm64/demo.key
           cp plugins/private-encrypted.plugs release/WailsPlugSystem-encrypted-macos-arm64/plugins/private-encrypted.plugs
           cat > release/WailsPlugSystem-encrypted-macos-arm64/README.md <<'README'
-# WailsPlugSystem Encrypted Demo — macOS Apple Silicon
+          # WailsPlugSystem Encrypted Demo — macOS Apple Silicon
 
-This package contains one native Wails production host binary and one encrypted `.plugs` archive.
+          This package contains one native Wails production host binary and one encrypted `.plugs` archive.
 
-```bash
-chmod +x wailsplugs-encrypted-demo
-./wailsplugs-encrypted-demo
-```
+          ```bash
+          chmod +x wailsplugs-encrypted-demo
+          ./wailsplugs-encrypted-demo
+          ```
 
-The host reads `./demo.key`, decrypts and verifies `plugins/private-encrypted.plugs`, then renders the plugin panel. To test fail-closed behavior, rename `demo.key` and launch again. Restore the key and click **Reload with demo.key**.
+          The host reads `./demo.key`, decrypts and verifies `plugins/private-encrypted.plugs`, then renders the plugin panel. To test fail-closed behavior, rename `demo.key` and launch again. Restore the key and click **Reload with demo.key**.
 
-`demo.key` is intentionally included only as a reproducible test key. Never ship a reusable key this way in production; use Keychain, a license service, or a device/account-bound key provider.
-README
+          `demo.key` is intentionally included only as a reproducible test key. Never ship a reusable key this way in production; use Keychain, a license service, or a device/account-bound key provider.
+          README
           (cd release/WailsPlugSystem-encrypted-macos-arm64 && shasum -a 256 wailsplugs-encrypted-demo plugins/private-encrypted.plugs demo.key > SHA256SUMS)
           cd release
           rm -f WailsPlugSystem-encrypted-macos-arm64.zip WailsPlugSystem-encrypted-macos-arm64.zip.sha256
