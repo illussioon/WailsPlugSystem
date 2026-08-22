@@ -16,10 +16,11 @@ import (
 // Definition is a fluent plugin definition. A zero Definition is not valid;
 // create one with New.
 type Definition struct {
-	manifest wailsplugs.Manifest
-	patches  []wailsplugs.Patch
-	assets   map[string][]byte
-	err      error
+	manifest      wailsplugs.Manifest
+	patches       []wailsplugs.Patch
+	assets        map[string][]byte
+	encryptionKey []byte
+	err           error
 }
 
 // New creates a plugin definition with the required manifest fields.
@@ -49,6 +50,16 @@ func (d *Definition) OnLoad(message string) *Definition {
 // OnUnload configures the message emitted when this plugin is removed or replaced.
 func (d *Definition) OnUnload(message string) *Definition {
 	d.manifest.Lifecycle.Unload = message
+	return d
+}
+
+// Encrypt enables AES-256-GCM encryption for patches and assets. The key is
+// copied into the definition and is never written to the `.plugs` archive.
+// Production hosts should obtain the matching key from secure storage or a
+// license service rather than hardcoding it in the application.
+func (d *Definition) Encrypt(key []byte) *Definition {
+	d.encryptionKey = append([]byte(nil), key...)
+	d.manifest.Encryption = wailsplugs.EncryptionAES256GCM
 	return d
 }
 
@@ -430,7 +441,7 @@ func (d *Definition) Build(output string) (string, error) {
 	if err := d.WriteSource(dir); err != nil {
 		return "", err
 	}
-	return pack.Build(pack.Options{InputDir: dir, Output: output})
+	return pack.Build(pack.Options{InputDir: dir, Output: output, EncryptionKey: d.encryptionKey})
 }
 
 func (d *Definition) rememberError(err error) *Definition {

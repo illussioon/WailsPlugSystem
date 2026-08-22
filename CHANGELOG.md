@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0 — 2026-08-22
+
+Added opt-in AES-256-GCM encrypted `.plugs` payloads. Patches and assets are stored in authenticated `payload.bin`, while the manifest remains available for routing and dependency metadata. Added SDK `Encrypt`, host `DecryptionKey` and `DecryptionKeyProvider`, CLI `--encrypt-key-file`/`--key-file`, encrypted package validation, key-provider loading, and anti-dump threat-model documentation. Plaintext packages remain backward compatible.
+
 ## 0.6.0 — 2026-08-22
 
 Added React/Vue Vite plugin templates, CLI `plugs init`, external CSS/JavaScript injection, plugin static asset routes for code splitting and dynamic imports, `AssetsDirAs`, explicit `HostCSS` permission, and cross-platform polling hot reload through `client.Watch` and `plugs watch`. Added asset route, code-splitting, template scaffolding, watcher, and host CSS metadata coverage.

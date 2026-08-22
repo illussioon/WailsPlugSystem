@@ -26,6 +26,9 @@ func (m Manifest) Validate() error {
 	if m.APIVersion != APIVersion {
 		return fmt.Errorf("%w: unsupported api_version %q", ErrInvalidManifest, m.APIVersion)
 	}
+	if m.Encryption != "" && m.Encryption != EncryptionAES256GCM {
+		return fmt.Errorf("%w: unsupported encryption %q", ErrInvalidManifest, m.Encryption)
+	}
 	if len(m.Lifecycle.Load) > 4096 || len(m.Lifecycle.Unload) > 4096 {
 		return fmt.Errorf("%w: lifecycle message is too long", ErrInvalidManifest)
 	}

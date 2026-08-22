@@ -16,7 +16,7 @@ The low-level root package remains available for advanced integrations and backw
 ## Install
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.6.0
+go get github.com/illussioon/WailsPlugSystem@v0.7.0
 ```
 
 ## Minimal host application
@@ -84,6 +84,8 @@ plugs watch --input ./plugin-source --output ./plugins/my-plugin.plugs
 ```
 
 The host-side `client.Watch` facade can reload the active plugin snapshot after `.plugs` changes. `HostCSS()` keeps plugin mounts in the host document so they can inherit host typography, CSS variables, and reset rules.
+
+For products that should not ship readable source in a plain ZIP, use opt-in AES-256-GCM payload encryption with `plugin.Definition.Encrypt(key)` or `plugs pack --encrypt-key-file`. The host supplies the matching key through `client.Options.DecryptionKey` or `DecryptionKeyProvider`; the key is never stored in the archive. This protects against casual extraction, but it is not an absolute anti-dump boundary because the WebView must receive decrypted assets at runtime.
 
 ## Wails IP demo
 

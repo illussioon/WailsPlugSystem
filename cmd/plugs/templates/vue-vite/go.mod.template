@@ -2,4 +2,4 @@ module example.com/wails-plugin
 
 go 1.22
 
-require github.com/illussioon/WailsPlugSystem v0.6.0
+require github.com/illussioon/WailsPlugSystem v0.7.0

@@ -7,7 +7,7 @@
 ## Установка
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.6.0
+go get github.com/illussioon/WailsPlugSystem@v0.7.0
 ```
 
 Ядро не импортирует Wails и использует обычный `net/http`, поэтому пакет собирается для Linux, Windows и macOS.
@@ -94,7 +94,7 @@ func main() {
 }
 ```
 
-Основные методы: `Priority`, `HTML`, `CSSPermission`, `JavaScript`, `ReplaceRoot`, `DependsOn`, `SetText`, `SetAttr`, `Remove`, `ReplaceHTML`, `AppendHTML`, `PrependHTML`, `AddClass`, `RemoveClass`, `AddCSS`, `AddJS`, `Asset`, `WriteSource` и `Build`.
+Основные методы: `Priority`, `HTML`, `CSSPermission`, `JavaScript`, `ReplaceRoot`, `DependsOn`, `Encrypt`, `SetText`, `SetAttr`, `Remove`, `ReplaceHTML`, `AppendHTML`, `PrependHTML`, `AddClass`, `RemoveClass`, `AddCSS`, `AddJS`, `Asset`, `WriteSource` и `Build`. `Encrypt(key)` включает AES-256-GCM для patches и assets; ключ в archive не записывается.
 
 `WithConflictKey` задаёт общий ресурс, которым конкурируют плагины. `Optional()` делает отсутствие selector или asset нефатальным.
 
@@ -251,7 +251,7 @@ Wails.plugin.print.unload("Acme Plugin выгружен");
 ## CLI и публикация
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.6.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.7.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -260,7 +260,46 @@ plugs hash --file ./dist/my-plugin.plugs
 После публичного semver tag пакет подключается стандартно:
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.6.0
+go get github.com/illussioon/WailsPlugSystem@v0.7.0
 ```
 
 После публикации тега Go tooling и `pkg.go.dev` смогут индексировать модуль и его GoDoc.
+
+## Зашифрованные `.plugs`
+
+`.plugs` можно собрать с authenticated AES-256-GCM шифрованием patches и assets. Обычный ZIP extractor больше не увидит HTML, CSS, JavaScript и статические ресурсы. Внешний `manifest.json` остаётся читаемым, потому что host должен получить ID, version, dependencies, permissions и asset hashes до расшифровки. Зашифрованный архив содержит только `manifest.json` и защищённый `payload.bin`.
+
+Шифрование включается при упаковке:
+
+```bash
+# plugin.key содержит 32 raw bytes или 64 hexadecimal characters
+plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs \
+  --encrypt-key-file ./plugin.key
+plugs verify --file ./dist/my-plugin.plugs --key-file ./plugin.key
+```
+
+В SDK используется метод `Encrypt`:
+
+```go
+key := loadKeyFromLicenseService() // ровно 32 bytes; не добавляйте его в archive
+plugin.New("acme", "Acme", "1.0.0").
+    HTML().
+    Encrypt(key).
+    Build("./dist/acme.plugs")
+```
+
+Host может получить ключ через provider:
+
+```go
+plugins, err := client.New(client.Options{
+    Directory: "./plugins",
+    DecryptionKeyProvider: func(manifest wailsplugs.Manifest) ([]byte, error) {
+        return licenseStore.KeyFor(manifest.ID, manifest.Version)
+    },
+    AllowJavaScript: true,
+})
+```
+
+Ключ никогда не записывается в `.plugs`. При отсутствии или неправильном ключе `OpenPackage` возвращает `ErrDecryption`, и plugin не активируется. Plaintext packages сохраняются для development и обратной совместимости.
+
+Шифрование не является абсолютной защитой от dump. Host должен расшифровать assets перед тем, как WebView сможет их отобразить или выполнить. Владелец контролируемого host process всё ещё может исследовать plaintext в памяти, перехватывать DOM/resource requests или debug JavaScript. Не храните во frontend assets API secrets, private signing keys и критичные бизнес-секреты. Для более сильной защиты используйте server-side licensing, OS secure storage, minification/obfuscation без source maps и перенос чувствительной логики на сервер.

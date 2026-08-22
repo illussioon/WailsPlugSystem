@@ -9,7 +9,7 @@ WailsPlugSystem is a Go SDK for loading, composing, and authoring portable `.plu
 ## 1. Install the SDK
 
 ```bash
-go get github.com/illussioon/WailsPlugSystem@v0.6.0
+go get github.com/illussioon/WailsPlugSystem@v0.7.0
 ```
 
 The module contains no Wails dependency in its core. It is ordinary Go code and can be cross-compiled for Linux, Windows, and macOS. Wails is connected through the standard `net/http` asset handler interface.
@@ -138,6 +138,7 @@ func main() {
 | `JavaScript()` | Grants JS asset permission; host policy is still required. |
 | `ReplaceRoot()` | Grants the `replace_root` permission and HTML permission. |
 | `DependsOn(id, version)` | Declares a required exact dependency version. |
+| `Encrypt(key)` | Encrypts patches and assets with authenticated AES-256-GCM; the host supplies the key at load time. |
 | `SetText` | Replaces text content. |
 | `SetAttr` | Sets an attribute. |
 | `Remove` | Removes matched nodes. |
@@ -333,7 +334,7 @@ JavaScript is not a sandbox. When enabled, it runs with the host WebView's norma
 Manual source directories can still be packaged with the CLI:
 
 ```bash
-go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.6.0
+go install github.com/illussioon/WailsPlugSystem/cmd/plugs@v0.7.0
 plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs
 plugs verify --file ./dist/my-plugin.plugs
 plugs hash --file ./dist/my-plugin.plugs
@@ -377,7 +378,7 @@ Use semantic version tags:
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
-go get github.com/illussioon/WailsPlugSystem@v0.6.0
+go get github.com/illussioon/WailsPlugSystem@v0.7.0
 ```
 
 After a public tag is pushed, Go tooling can resolve the module and `pkg.go.dev` can index its documentation. The module path is:
@@ -391,3 +392,42 @@ github.com/illussioon/WailsPlugSystem
 [1]: https://github.com/wailsapp/wails "Wails official repository"
 [2]: https://github.com/cordiverse/cordis "Cordis plugin/composability framework"
 [3]: https://pkg.go.dev/ "Go package documentation service"
+
+## Encrypted `.plugs` payloads
+
+A `.plugs` archive can encrypt its patches and assets with authenticated AES-256-GCM. This prevents a casual ZIP extractor from reading the HTML, CSS, JavaScript, and static resources. The outer `manifest.json` remains readable because the host needs plugin ID, version, dependencies, permissions, and asset hashes before decryption. An encrypted archive contains only `manifest.json` and an authenticated `payload.bin`.
+
+Encryption is opt-in at build time:
+
+```bash
+# plugin.key contains either 32 raw bytes or 64 hexadecimal characters
+plugs pack --input ./my-plugin --output ./dist/my-plugin.plugs \
+  --encrypt-key-file ./plugin.key
+plugs verify --file ./dist/my-plugin.plugs --key-file ./plugin.key
+```
+
+The SDK exposes the same capability:
+
+```go
+key := loadKeyFromLicenseService() // exactly 32 bytes; do not ship it in the archive
+plugin.New("acme", "Acme", "1.0.0").
+    HTML().
+    Encrypt(key).
+    Build("./dist/acme.plugs")
+```
+
+A host can provide a key directly or obtain it at load time:
+
+```go
+plugins, err := client.New(client.Options{
+    Directory: "./plugins",
+    DecryptionKeyProvider: func(manifest wailsplugs.Manifest) ([]byte, error) {
+        return licenseStore.KeyFor(manifest.ID, manifest.Version)
+    },
+    AllowJavaScript: true,
+})
+```
+
+The key is never stored in the `.plugs` archive. If the key is absent or incorrect, `OpenPackage` returns `ErrDecryption` and the plugin is not activated. Plaintext packages remain supported for development and backward compatibility.
+
+Encryption is **not an absolute anti-dump boundary**. The host must decrypt assets before the WebView can execute or render them, so a determined user controlling the host process can inspect plaintext in memory, intercept DOM/resource requests, or debug JavaScript. Do not put API secrets, private signing keys, or irreplaceable business secrets in frontend assets. For stronger product protection, combine encrypted payloads with server-side licensing, OS secure storage, minification/obfuscation without source maps, and server-side execution of sensitive logic.

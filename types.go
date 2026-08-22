@@ -10,6 +10,10 @@ const (
 	FormatVersion   = 1
 	APIVersion      = "v1"
 	ConsoleEndpoint = "/__wailsplugs/console"
+	// EncryptionAES256GCM stores the package payload in an authenticated
+	// AES-256-GCM envelope. The manifest remains readable for routing and
+	// dependency metadata; patches and assets are encrypted.
+	EncryptionAES256GCM = "aes-256-gcm"
 )
 
 type Permission string
@@ -32,6 +36,7 @@ var (
 	ErrDependency      = errors.New("wailsplugs: dependency not satisfied")
 	ErrUnsafeArchive   = errors.New("wailsplugs: unsafe archive")
 	ErrPackageTooLarge = errors.New("wailsplugs: package exceeds configured limit")
+	ErrDecryption      = errors.New("wailsplugs: encrypted payload could not be decrypted")
 )
 
 type Dependency struct {
@@ -50,12 +55,18 @@ type Lifecycle struct {
 	Unload string `json:"unload,omitempty"`
 }
 
+// DecryptionKeyProvider supplies a 32-byte AES-256 key for an encrypted
+// package. Hosts should obtain keys from a license service or OS secure
+// storage rather than embedding reusable keys in plugin archives.
+type DecryptionKeyProvider func(Manifest) ([]byte, error)
+
 type Manifest struct {
 	FormatVersion int          `json:"format_version"`
 	ID            string       `json:"id"`
 	Name          string       `json:"name"`
 	Version       string       `json:"version"`
 	APIVersion    string       `json:"api_version"`
+	Encryption    string       `json:"encryption,omitempty"`
 	Priority      int          `json:"priority"`
 	Permissions   []Permission `json:"permissions,omitempty"`
 	Dependencies  []Dependency `json:"dependencies,omitempty"`

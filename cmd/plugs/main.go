@@ -54,8 +54,17 @@ func packCommand(args []string) {
 	set := flag.NewFlagSet("pack", flag.ExitOnError)
 	input := set.String("input", ".", "plugin source directory")
 	output := set.String("output", "plugin.plugs", "output .plugs path")
+	keyFile := set.String("encrypt-key-file", "", "raw 32-byte or 64-hex-byte AES-256 key file")
 	_ = set.Parse(args)
-	path, err := pack.Build(pack.Options{InputDir: *input, Output: *output})
+	var key []byte
+	var err error
+	if *keyFile != "" {
+		key, err = readEncryptionKey(*keyFile)
+		if err != nil {
+			fatal(err)
+		}
+	}
+	path, err := pack.Build(pack.Options{InputDir: *input, Output: *output, EncryptionKey: key})
 	if err != nil {
 		fatal(err)
 	}
@@ -65,11 +74,20 @@ func packCommand(args []string) {
 func verifyCommand(args []string) {
 	set := flag.NewFlagSet("verify", flag.ExitOnError)
 	path := set.String("file", "", ".plugs file")
+	keyFile := set.String("key-file", "", "raw 32-byte or 64-hex-byte AES-256 key file")
 	_ = set.Parse(args)
 	if *path == "" {
 		fatal(fmt.Errorf("-file is required"))
 	}
-	item, err := wailsplugs.OpenPackage(*path, wailsplugs.PackageOptions{})
+	var key []byte
+	var err error
+	if *keyFile != "" {
+		key, err = readEncryptionKey(*keyFile)
+		if err != nil {
+			fatal(err)
+		}
+	}
+	item, err := wailsplugs.OpenPackage(*path, wailsplugs.PackageOptions{DecryptionKey: key})
 	if err != nil {
 		fatal(err)
 	}
@@ -164,6 +182,25 @@ func watchCommand(args []string) {
 	if err != nil && err != context.Canceled {
 		fatal(err)
 	}
+}
+
+func readEncryptionKey(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read encryption key: %w", err)
+	}
+	if len(data) == 32 {
+		return data, nil
+	}
+	encoded := strings.TrimSpace(string(data))
+	if len(encoded) != 64 {
+		return nil, fmt.Errorf("encryption key must be raw 32 bytes or 64 hexadecimal characters")
+	}
+	key, err := hex.DecodeString(encoded)
+	if err != nil || len(key) != 32 {
+		return nil, fmt.Errorf("encryption key is not valid hexadecimal")
+	}
+	return key, nil
 }
 
 func fileToHashHelp() string { return "file to hash" }

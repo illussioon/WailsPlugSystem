@@ -21,3 +21,11 @@ External CSS and JavaScript assets are served only from the active, already veri
 `HostCSS` means that a plugin intentionally renders in the host document and can inherit its CSS cascade. It does not grant access to Go APIs, filesystem APIs, or host methods. Do not use `HostCSS` for untrusted plugins that can inject JavaScript, because CSS inheritance and JavaScript execution still occur in the host WebView context.
 
 The development watcher and `plugs watch` are build-time conveniences. Do not use an unrestricted development directory as a production plugin source; production should load a verified directory or SHA-256 allowlist and keep JavaScript policy explicit.
+
+## Encrypted payloads and anti-dump limits
+
+The optional `aes-256-gcm` package mode keeps `manifest.json` readable and encrypts `patches.json` plus all assets inside authenticated `payload.bin`. A normal ZIP extractor therefore cannot recover the plugin source. The decryption key must be delivered by the host through `PackageOptions.DecryptionKey`, `client.Options.DecryptionKey`, or a `DecryptionKeyProvider`; it is never written into the archive.
+
+Do not hardcode a reusable production key in a public host binary. Prefer a license/backend service, OS secure storage such as Keychain, or a device/account-bound key derivation scheme. Keep signing and license credentials outside frontend assets.
+
+Encryption raises the cost of casual extraction but is not DRM. A user who controls the running host can potentially capture the key, inspect decrypted memory, hook the asset/DOM boundary, or debug JavaScript. Sensitive algorithms and secrets should remain server-side; minification and obfuscation can supplement encryption but do not replace access control or code signing.

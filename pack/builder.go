@@ -19,6 +19,9 @@ import (
 type Options struct {
 	InputDir string
 	Output   string
+	// EncryptionKey enables AES-256-GCM encryption of patches and assets.
+	// The key must be exactly 32 bytes; manifest.json remains readable.
+	EncryptionKey []byte
 }
 
 func Build(options Options) (string, error) {
@@ -69,18 +72,26 @@ func Build(options Options) (string, error) {
 		sum := sha256.Sum256(data)
 		manifest.Files = append(manifest.Files, wailsplugs.FileRef{Path: relative, SHA256: hex.EncodeToString(sum[:]), Kind: assetKind(relative)})
 	}
-	if err := manifest.Validate(); err != nil {
-		return "", err
-	}
-	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return "", err
-	}
 	patchPath := filepath.Join(options.InputDir, "patches.json")
 	patchBytes, err := os.ReadFile(patchPath)
 	if os.IsNotExist(err) {
 		patchBytes = []byte("[]\n")
 	} else if err != nil {
+		return "", err
+	}
+	if len(options.EncryptionKey) > 0 {
+		if len(options.EncryptionKey) != 32 {
+			return "", fmt.Errorf("pack: AES-256 encryption key must be exactly 32 bytes")
+		}
+		manifest.Encryption = wailsplugs.EncryptionAES256GCM
+	} else if manifest.Encryption != "" {
+		return "", fmt.Errorf("pack: manifest requests encryption but EncryptionKey is missing")
+	}
+	if err := manifest.Validate(); err != nil {
+		return "", err
+	}
+	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
 		return "", err
 	}
 	if _, err := os.Stat(filepath.Dir(options.Output)); err != nil && os.IsNotExist(err) {
@@ -99,16 +110,30 @@ func Build(options Options) (string, error) {
 	if err := writeZipEntry(archive, "manifest.json", manifestBytes); err != nil {
 		return "", err
 	}
-	if err := writeZipEntry(archive, "patches.json", patchBytes); err != nil {
-		return "", err
-	}
-	for _, relative := range assetPaths {
-		data, err := os.ReadFile(filepath.Join(options.InputDir, filepath.FromSlash(relative)))
+	if len(options.EncryptionKey) > 0 {
+		payload, err := buildPayload(options.InputDir, patchBytes, assetPaths)
 		if err != nil {
 			return "", err
 		}
-		if err := writeZipEntry(archive, relative, data); err != nil {
+		envelope, err := wailsplugs.EncryptPayload(payload, options.EncryptionKey)
+		if err != nil {
 			return "", err
+		}
+		if err := writeZipEntry(archive, "payload.bin", envelope); err != nil {
+			return "", err
+		}
+	} else {
+		if err := writeZipEntry(archive, "patches.json", patchBytes); err != nil {
+			return "", err
+		}
+		for _, relative := range assetPaths {
+			data, err := os.ReadFile(filepath.Join(options.InputDir, filepath.FromSlash(relative)))
+			if err != nil {
+				return "", err
+			}
+			if err := writeZipEntry(archive, relative, data); err != nil {
+				return "", err
+			}
 		}
 	}
 	if err := archive.Close(); err != nil {
@@ -121,6 +146,27 @@ func Build(options Options) (string, error) {
 		return "", err
 	}
 	return options.Output, nil
+}
+
+func buildPayload(inputDir string, patchBytes []byte, assetPaths []string) ([]byte, error) {
+	var payload bytes.Buffer
+	archive := zip.NewWriter(&payload)
+	if err := writeZipEntry(archive, "patches.json", patchBytes); err != nil {
+		return nil, err
+	}
+	for _, relative := range assetPaths {
+		data, err := os.ReadFile(filepath.Join(inputDir, filepath.FromSlash(relative)))
+		if err != nil {
+			return nil, err
+		}
+		if err := writeZipEntry(archive, relative, data); err != nil {
+			return nil, err
+		}
+	}
+	if err := archive.Close(); err != nil {
+		return nil, err
+	}
+	return payload.Bytes(), nil
 }
 
 func writeZipEntry(archive *zip.Writer, name string, data []byte) error {

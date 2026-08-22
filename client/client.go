@@ -25,6 +25,10 @@ type Options struct {
 	SHA256 []string
 
 	PackageOptions wailsplugs.PackageOptions
+	// DecryptionKey is an optional 32-byte AES-256 key for encrypted packages.
+	DecryptionKey []byte
+	// DecryptionKeyProvider obtains encrypted package keys at load time.
+	DecryptionKeyProvider wailsplugs.DecryptionKeyProvider
 	// HostLogger receives messages sent by Wails.print.console.
 	HostLogger         func(wailsplugs.ConsoleMessage)
 	AllowJavaScript    bool
@@ -43,20 +47,27 @@ type Client struct {
 // New creates a Client. Exactly one loading strategy is selected in this order:
 // custom Loader, SHA256 allowlist, or Directory.
 func New(options Options) (*Client, error) {
+	packageOptions := options.PackageOptions
+	if len(options.DecryptionKey) > 0 {
+		packageOptions.DecryptionKey = append([]byte(nil), options.DecryptionKey...)
+	}
+	if options.DecryptionKeyProvider != nil {
+		packageOptions.DecryptionKeyProvider = options.DecryptionKeyProvider
+	}
 	packageLoader := options.Loader
 	if packageLoader == nil && len(options.SHA256) > 0 {
 		packageLoader = loader.SHA256Allowlist{
 			Dir:            options.Directory,
 			SHA256:         options.SHA256,
 			Recursive:      options.Recursive,
-			PackageOptions: options.PackageOptions,
+			PackageOptions: packageOptions,
 		}
 	}
 	if packageLoader == nil && options.Directory != "" {
 		packageLoader = loader.Directory{
 			Dir:            options.Directory,
 			Recursive:      options.Recursive,
-			PackageOptions: options.PackageOptions,
+			PackageOptions: packageOptions,
 		}
 	}
 	if packageLoader == nil {

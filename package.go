@@ -2,6 +2,7 @@ package wailsplugs
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,6 +17,11 @@ import (
 type PackageOptions struct {
 	MaxArchiveBytes int64
 	MaxFileBytes    int64
+	// DecryptionKey is a 32-byte AES-256 key for encrypted packages.
+	DecryptionKey []byte
+	// DecryptionKeyProvider can obtain a package key from a license service or
+	// OS secure storage after the readable manifest has been parsed.
+	DecryptionKeyProvider DecryptionKeyProvider
 }
 
 func OpenPackage(path string, options PackageOptions) (Package, error) {
@@ -39,34 +45,24 @@ func OpenPackage(path string, options PackageOptions) (Package, error) {
 	defer archive.Close()
 
 	var manifest Manifest
-	var manifestFound, patchesFound bool
-	var patchBytes []byte
+	var manifestFound, patchesFound, payloadFound bool
+	var patchBytes, payloadBytes []byte
 	assets := map[string][]byte{}
 	for _, file := range archive.File {
 		name, err := safeArchivePath(file.Name)
 		if err != nil || name != file.Name || file.FileInfo().Mode()&os.ModeSymlink != 0 {
 			return Package{}, fmt.Errorf("%w: %q", ErrUnsafeArchive, file.Name)
 		}
-		if file.UncompressedSize64 > uint64(options.MaxFileBytes) {
-			return Package{}, fmt.Errorf("%w: %s", ErrPackageTooLarge, name)
-		}
 		if file.FileInfo().IsDir() {
 			continue
 		}
-		reader, err := file.Open()
+		limit := options.MaxFileBytes
+		if name == "payload.bin" {
+			limit = options.MaxArchiveBytes
+		}
+		data, err := readArchiveFile(file, limit, name)
 		if err != nil {
 			return Package{}, err
-		}
-		data, readErr := io.ReadAll(io.LimitReader(reader, options.MaxFileBytes+1))
-		closeErr := reader.Close()
-		if readErr != nil {
-			return Package{}, readErr
-		}
-		if closeErr != nil {
-			return Package{}, closeErr
-		}
-		if int64(len(data)) > options.MaxFileBytes {
-			return Package{}, fmt.Errorf("%w: %s", ErrPackageTooLarge, name)
 		}
 		switch name {
 		case "manifest.json":
@@ -82,6 +78,11 @@ func OpenPackage(path string, options PackageOptions) (Package, error) {
 				return Package{}, fmt.Errorf("%w: duplicate patches", ErrUnsafeArchive)
 			}
 			patchBytes, patchesFound = data, true
+		case "payload.bin":
+			if payloadFound {
+				return Package{}, fmt.Errorf("%w: duplicate encrypted payload", ErrUnsafeArchive)
+			}
+			payloadBytes, payloadFound = data, true
 		default:
 			if !validAssetPath(name) {
 				return Package{}, fmt.Errorf("%w: unexpected file %q", ErrUnsafeArchive, name)
@@ -95,9 +96,33 @@ func OpenPackage(path string, options PackageOptions) (Package, error) {
 	if err := manifest.Validate(); err != nil {
 		return Package{}, err
 	}
-	if !patchesFound {
-		patchBytes = []byte("[]")
+
+	if manifest.Encryption == EncryptionAES256GCM {
+		if !payloadFound || patchesFound || len(assets) > 0 {
+			return Package{}, fmt.Errorf("%w: encrypted package must contain manifest.json and payload.bin only", ErrUnsafeArchive)
+		}
+		key, err := packageDecryptionKey(manifest, options)
+		if err != nil {
+			return Package{}, err
+		}
+		plainPayload, err := DecryptPayload(payloadBytes, key)
+		if err != nil {
+			return Package{}, fmt.Errorf("%w: %s", err, manifest.ID)
+		}
+		patchBytes, assets, err = parsePayload(plainPayload, options)
+		if err != nil {
+			return Package{}, err
+		}
+		patchesFound = true
+	} else {
+		if payloadFound {
+			return Package{}, fmt.Errorf("%w: payload.bin requires encryption=%q", ErrInvalidManifest, EncryptionAES256GCM)
+		}
+		if !patchesFound {
+			patchBytes = []byte("[]")
+		}
 	}
+
 	var patches []Patch
 	if err := json.Unmarshal(patchBytes, &patches); err != nil {
 		return Package{}, fmt.Errorf("%w: patches.json: %v", ErrInvalidManifest, err)
@@ -113,6 +138,82 @@ func OpenPackage(path string, options PackageOptions) (Package, error) {
 		return Package{}, err
 	}
 	return Package{Manifest: manifest, Patches: patches, Assets: assets, Path: path, SHA256: digest}, nil
+}
+
+func packageDecryptionKey(manifest Manifest, options PackageOptions) ([]byte, error) {
+	key := options.DecryptionKey
+	if len(key) == 0 && options.DecryptionKeyProvider != nil {
+		var err error
+		key, err = options.DecryptionKeyProvider(manifest)
+		if err != nil {
+			return nil, fmt.Errorf("%w: key provider: %v", ErrDecryption, err)
+		}
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("%w: a 32-byte key is required for %s", ErrDecryption, manifest.ID)
+	}
+	return key, nil
+}
+
+func parsePayload(payload []byte, options PackageOptions) ([]byte, map[string][]byte, error) {
+	archive, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: encrypted payload is not a valid container", ErrDecryption)
+	}
+	var patches []byte
+	var patchesFound bool
+	assets := map[string][]byte{}
+	for _, file := range archive.File {
+		name, err := safeArchivePath(file.Name)
+		if err != nil || name != file.Name || file.FileInfo().Mode()&os.ModeSymlink != 0 {
+			return nil, nil, fmt.Errorf("%w: unsafe encrypted payload path %q", ErrUnsafeArchive, file.Name)
+		}
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		data, err := readArchiveFile(file, options.MaxFileBytes, name)
+		if err != nil {
+			return nil, nil, err
+		}
+		switch name {
+		case "patches.json":
+			if patchesFound {
+				return nil, nil, fmt.Errorf("%w: duplicate encrypted patches", ErrUnsafeArchive)
+			}
+			patches, patchesFound = data, true
+		default:
+			if !validAssetPath(name) {
+				return nil, nil, fmt.Errorf("%w: unexpected encrypted payload file %q", ErrUnsafeArchive, name)
+			}
+			assets[name] = data
+		}
+	}
+	if !patchesFound {
+		patches = []byte("[]")
+	}
+	return patches, assets, nil
+}
+
+func readArchiveFile(file *zip.File, limit int64, name string) ([]byte, error) {
+	if file.UncompressedSize64 > uint64(limit) {
+		return nil, fmt.Errorf("%w: %s", ErrPackageTooLarge, name)
+	}
+	reader, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	data, readErr := io.ReadAll(io.LimitReader(reader, limit+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w: %s", ErrPackageTooLarge, name)
+	}
+	return data, nil
 }
 
 func validatePatches(patches []Patch) error {
